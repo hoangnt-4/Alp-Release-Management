@@ -8,6 +8,7 @@ import History from './pages/History'
 import Watchlist from './pages/Watchlist'
 import Stats from './pages/Stats'
 import Apps from './pages/Apps'
+import Tutorial from './pages/Tutorial'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
               <Route path="/watchlist" element={<Watchlist />} />
               <Route path="/stats" element={<Stats />} />
               <Route path="/apps" element={<Apps />} />
+              <Route path="/tutorial" element={<Tutorial />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Layout>

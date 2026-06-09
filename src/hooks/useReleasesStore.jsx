@@ -26,12 +26,17 @@ export function ReleasesProvider({ children }) {
         const releases = (r.records || [])
           .filter(x => x.app || x.releaseDate)
           .map(rel => {
-            if (rel.platform) return rel
-            // Enrich platform from apps list if missing
-            const key = (rel.appName || rel.app || '').toLowerCase()
+            const key   = (rel.appName || rel.app || '').toLowerCase()
             const hnKey = (rel.hnId || '').toLowerCase()
             const matched = byAlpId[key] || byHnId[hnKey]
-            return matched ? { ...rel, platform: matched.platform } : rel
+            if (!matched) return rel
+            return {
+              ...rel,
+              platform: rel.platform || matched.platform,
+              // Enrich appName from HN ID if record was imported without App link
+              appName:  rel.appName || matched.alpId || matched.hnId,
+              _appId:   matched.id,   // keep for repair
+            }
           })
 
         setReleases(releases)

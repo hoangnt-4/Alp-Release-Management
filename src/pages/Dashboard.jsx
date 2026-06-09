@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useReleasesStore } from '../hooks/useReleasesStore'
-import { createRelease, updateRelease } from '../lib/lark'
+import { createRelease, updateRelease, getActivities } from '../lib/lark'
 import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
+import AppDetailModal from '../components/AppDetailModal'
 
 const ROLLOUT_OPTIONS = ['--', '1%', '5%', '10%', '20%', '50%', '99%', '100%']
 const EMPTY = { app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' }
@@ -26,11 +27,24 @@ export default function Dashboard() {
 
   // Review modal
   const [reviewModal, setReviewModal] = useState(null)
-  const [reviewForm, setReviewForm]   = useState({ status: '', reviewNotes: '', lastCheckedDate: '' })
+  const [reviewForm, setReviewForm]   = useState({ status: 'Checked', reviewNotes: '', lastCheckedDate: '', reviewer: 'Hieu' })
   const [reviewSaving, setReviewSaving] = useState(false)
+  const [activities, setActivities]     = useState({})
+  const [detailApp, setDetailApp]       = useState(null)
+
+  useEffect(() => {
+    getActivities().then(res => {
+      const map = {}
+      for (const r of res.records || []) {
+        if (r.hnId)  map[r.hnId.toLowerCase()]  = r
+        if (r.alpId) map[r.alpId.toLowerCase()] = r
+      }
+      setActivities(map)
+    }).catch(() => {})
+  }, [])
 
   const openReview = (r) => {
-    setReviewForm({ status: r.status || '', reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10) })
+    setReviewForm({ status: r.status || 'Checked', reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10), reviewer: r.reviewer || 'Hieu' })
     setReviewModal(r)
   }
   const handleSaveReview = async () => {
@@ -56,7 +70,7 @@ export default function Dashboard() {
   const recent = [...releases]
     .sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''))
     .filter(r => !search || `${r.appName || r.app} ${r.hnId} ${r.version} ${r.releaseNote}`.toLowerCase().includes(search.toLowerCase()))
-    .slice(0, 10)
+    .slice(0, 15)
 
   const handleSelectApp = (app) => {
     setSelectedApp(app)
@@ -114,7 +128,7 @@ export default function Dashboard() {
       {/* Recent */}
       <div className="card overflow-hidden">
         <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200">
-          <p className="text-sm font-semibold">10 bản phát hành gần nhất</p>
+          <p className="text-sm font-semibold">15 bản phát hành gần nhất</p>
           <div className="flex items-center gap-3">
             <input
               className="input w-48 text-xs py-1.5"
@@ -144,9 +158,12 @@ export default function Dashboard() {
                   <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#94a3b8' }}>{i + 1}</td>
                   <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap" style={{ color: '#64748b' }}>{r.releaseDate?.slice(0, 10) || '—'}</td>
                   <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <PlatformBadge platform={r.platform} />
                       <button onClick={() => openEditModal(r)} className="font-medium text-xs text-left hover:underline" style={{ color: '#1e2235' }}>{r.appName || r.app || '—'}</button>
+                      {(activities[r.hnId?.toLowerCase()] || activities[(r.appName || r.app)?.toLowerCase()])?.requestUpdate && (
+                        <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#fef3c7', color: '#d97706' }}>⚡</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#64748b' }}>{r.hnId || '—'}</td>
@@ -196,12 +213,18 @@ export default function Dashboard() {
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Status review</label>
                 <select className="input" value={reviewForm.status} onChange={e => setReviewForm(f => ({ ...f, status: e.target.value }))}>
-                  {['', 'Checked', 'Updated', 'Pending Review'].map(o => <option key={o} value={o}>{o || '— Chưa có —'}</option>)}
+                  {['', 'Checked', 'Updated', 'Pending Review', 'Checking', 'New'].map(o => <option key={o} value={o}>{o || '— Chưa có —'}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Ngày kiểm tra</label>
                 <input type="date" className="input" value={reviewForm.lastCheckedDate} onChange={e => setReviewForm(f => ({ ...f, lastCheckedDate: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Reviewer</label>
+                <select className="input" value={reviewForm.reviewer} onChange={e => setReviewForm(f => ({ ...f, reviewer: e.target.value }))}>
+                  {['Hieu', 'Hoa Nguyen', 'Tuan Hoang'].map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Ghi chú review</label>
@@ -231,12 +254,25 @@ export default function Dashboard() {
                   {editModal.appName || editModal.app}
                 </p>
               </div>
-              <button onClick={() => setEditModal(null)} className="text-xl" style={{ color: '#94a3b8' }}>✕</button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const matchedApp = apps.find(a =>
+                      (editModal.hnId && a.hnId === editModal.hnId) ||
+                      a.alpId?.toLowerCase() === (editModal.appName || editModal.app)?.toLowerCase()
+                    )
+                    if (matchedApp) { setEditModal(null); setDetailApp(matchedApp) }
+                  }}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-surface-200 hover:bg-surface-50 transition-colors"
+                  style={{ color: '#64748b' }}
+                >⊞ Chi tiết app</button>
+                <button onClick={() => setEditModal(null)} className="text-xl" style={{ color: '#94a3b8' }}>✕</button>
+              </div>
             </div>
             <div className="p-5 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version</label>
+                  <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version <span style={{ color: '#ef4444' }}>*</span></label>
                   <input className="input" placeholder="1.2.3" value={editForm.version} onChange={e => setEditForm(f => ({ ...f, version: e.target.value }))} />
                 </div>
                 <div>
@@ -287,7 +323,7 @@ export default function Dashboard() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version</label>
+                  <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version <span style={{ color: '#ef4444' }}>*</span></label>
                   <input className="input" placeholder="1.2.3" value={form.version} onChange={e => setForm(f => ({ ...f, version: e.target.value }))} />
                 </div>
                 <div>
@@ -318,6 +354,8 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {detailApp && <AppDetailModal app={detailApp} onClose={() => setDetailApp(null)} />}
     </div>
   )
 }

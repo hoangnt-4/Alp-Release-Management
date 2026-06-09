@@ -33,6 +33,18 @@ export async function getApps() {
   return request('/apps')
 }
 
+export async function getTimeline() {
+  return request('/timeline')
+}
+
+export async function getActivities() {
+  return request('/activities')
+}
+
+export async function updateActivity(recordId, data) {
+  return request(`/activities/${recordId}`, { method: 'PATCH', body: JSON.stringify(data) })
+}
+
 export function downloadCSV(releases) {
   const COLS = ['releaseDate', 'appName', 'platform', 'version', 'rollout', 'releaseNote', 'status', 'reviewer', 'reviewNotes', 'lastCheckedDate']
   const header = ['Ngày', 'App Name', 'Platform', 'Version', 'Roll-out', 'Mô tả', 'Status', 'Reviewer', 'Review Notes', 'Last Checked']

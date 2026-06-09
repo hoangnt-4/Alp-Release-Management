@@ -123,7 +123,7 @@ export default function Stats() {
     return Object.entries(map)
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-12)
-      .map(([k, v]) => ({ label: k.slice(5), value: v })) // MM label
+      .map(([k, v]) => ({ label: k.slice(2).replace('-', '/'), value: v })) // YY/MM label
   }, [releases])
 
   const byStatus = useMemo(() => {
@@ -144,6 +144,17 @@ export default function Stats() {
   const topApps = useMemo(() => {
     const map = {}
     releases.forEach(r => { const a = r.appName || r.app || 'Unknown'; map[a] = (map[a] || 0) + 1 })
+    return Object.entries(map)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([label, value]) => ({ label, value }))
+  }, [releases])
+
+  const topRequestApps = useMemo(() => {
+    const map = {}
+    releases
+      .filter(r => r.releaseNote?.toLowerCase().includes('update request'))
+      .forEach(r => { const a = r.appName || r.app || 'Unknown'; map[a] = (map[a] || 0) + 1 })
     return Object.entries(map)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10)
@@ -179,6 +190,14 @@ export default function Stats() {
         <div className="card p-5">
           <p className="text-sm font-semibold mb-4">Top 10 app nhiều bản phát hành nhất</p>
           {topApps.length ? <HBarChart data={topApps} /> : <p className="text-sm py-8 text-center" style={{ color: '#94a3b8' }}>Không có dữ liệu</p>}
+        </div>
+
+        {/* Top request apps */}
+        <div className="card p-5">
+          <p className="text-sm font-semibold mb-4">Top 10 app có Request Update nhiều nhất</p>
+          {topRequestApps.length
+            ? <HBarChart data={topRequestApps} color="#d97706" />
+            : <p className="text-sm py-8 text-center" style={{ color: '#94a3b8' }}>Không có dữ liệu</p>}
         </div>
       </div>
     </div>

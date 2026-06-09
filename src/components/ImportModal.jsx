@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
-import { createRelease } from '../lib/lark'
+import { createRelease, updateRelease } from '../lib/lark'
 
 // Extract HN ID from strings like "App564 - Note Taker (iOS)" → "App564"
 function extractHnId(appNameStr) {
@@ -10,12 +10,23 @@ function extractHnId(appNameStr) {
 }
 
 // Normalize roll-out value
+const VALID_ROLLOUTS = new Set(['--','20%','30%','40%','50%','99%','100%'])
+
 function normalizeRollout(v) {
-  if (!v || v === '--' || v === '-') return '--'
+  if (v === null || v === undefined || v === '' || v === '--' || v === '-') return '--'
+  // Excel stores percentage cells as decimals: 0.5 = 50%, 0.2 = 20%
+  if (typeof v === 'number' && v > 0 && v <= 1) {
+    const pct = `${Math.round(v * 100)}%`
+    if (VALID_ROLLOUTS.has(pct)) return pct
+    return '--'
+  }
   const s = String(v).trim().replace(/\s+/g, '')
-  if (s.endsWith('%')) return s
-  const n = parseFloat(s)
-  if (!isNaN(n)) return `${n}%`
+  // Exact match
+  if (VALID_ROLLOUTS.has(s)) return s
+  // Add % if missing
+  const withPct = s.endsWith('%') ? s : `${parseFloat(s)}%`
+  if (VALID_ROLLOUTS.has(withPct)) return withPct
+  // Value not in valid set → return '--' to avoid wrong mapping
   return '--'
 }
 
@@ -47,12 +58,23 @@ function findCol(headers, ...candidates) {
   return null
 }
 
-export default function ImportModal({ apps, onClose, onDone }) {
+export default function ImportModal({ apps, releases = [], onClose, onDone }) {
+  const [mode, setMode]       = useState('import') // import | update
   const [step, setStep]       = useState('upload') // upload | preview | importing | done
   const [rows, setRows]       = useState([])
   const [error, setError]     = useState('')
   const [progress, setProgress] = useState({ done: 0, total: 0, errors: [] })
   const fileRef = useRef()
+
+  // Build lookup for existing releases: "date|version" → record (for update mode)
+  const existingMap = {}
+  for (const r of releases) {
+    if (r.releaseDate && r.version) {
+      const key = `${r.releaseDate}|${r.version}`
+      if (!existingMap[key]) existingMap[key] = []
+      existingMap[key].push(r)
+    }
+  }
 
   const handleFile = (e) => {
     const file = e.target.files?.[0]
@@ -84,12 +106,41 @@ export default function ImportModal({ apps, onClose, onDone }) {
         const byHnId = {}
         apps.forEach(a => { if (a.hnId) byHnId[a.hnId.toLowerCase()] = a })
 
+        // Forward-fill app name (handles merged cells / blank rows under same app)
+        let lastAppName = ''
         const parsed = data
-          .filter(row => colApp && row[colApp])
           .map((row, idx) => {
-            const rawAppName = String(row[colApp] || '')
+            const rawAppName = String(row[colApp] || '').trim() || lastAppName
+            if (rawAppName) lastAppName = rawAppName
             const hnId       = extractHnId(rawAppName)
             const matched    = byHnId[hnId.toLowerCase()] || null
+
+            const releaseDate = normalizeDate(colDate ? row[colDate] : '')
+            const version     = String(row[colVersion] || '').trim()
+
+            // Determine action for update mode
+            let _action = 'create'
+            let _targetId = null
+            if (mode === 'update') {
+              if (releaseDate && version) {
+                const key = `${releaseDate}|${version}`
+                const existing = existingMap[key] || []
+                const emptyMatches = existing.filter(r => !r.hnId && !r.app)
+                if (emptyMatches.length === 1) {
+                  // Found exactly 1 empty record → patch it
+                  _action   = 'update'
+                  _targetId = emptyMatches[0].id
+                } else if (existing.some(r => r.hnId || r.app)) {
+                  // Record exists and already has data → skip
+                  _action = 'skip'
+                } else {
+                  // No record found (was deleted) → create new
+                  _action = 'create'
+                }
+              } else {
+                _action = 'skip'
+              }
+            }
 
             return {
               _idx:        idx,
@@ -98,17 +149,19 @@ export default function ImportModal({ apps, onClose, onDone }) {
               matched,
               appId:       matched?.id || '',
               appName:     matched ? (matched.alpId || matched.hnId) : rawAppName,
-              releaseDate: normalizeDate(colDate ? row[colDate] : ''),
-              version:     String(row[colVersion] || '').trim(),
+              releaseDate,
+              version,
               rollout:     normalizeRollout(row[colRollout]),
               releaseNote: String(row[colDesc] || '').trim(),
               lastCheckedDate: normalizeDate(colChecked ? row[colChecked] : ''),
               status:      String(row[colStatus] || '').trim(),
               reviewNotes: String(row[colReviewNotes] || '').trim(),
-              _skip:       false,
+              _action,
+              _targetId,
+              _skip: _action === 'skip' || (mode === 'update' && !matched),
             }
           })
-          .filter(r => r.appId || r.rawAppName) // keep rows with at least an app name
+          .filter(r => r.rawAppName && r.releaseDate) // keep rows with app name + date
 
         if (!parsed.length) { setError('Không tìm thấy dữ liệu hợp lệ trong file.'); return }
         setRows(parsed)
@@ -125,7 +178,7 @@ export default function ImportModal({ apps, onClose, onDone }) {
   }
 
   const handleImport = async () => {
-    const toImport = rows.filter(r => !r._skip && r.appId && r.releaseDate)
+    const toImport = rows.filter(r => !r._skip && r.releaseDate)
     if (!toImport.length) return
     setStep('importing')
     setProgress({ done: 0, total: toImport.length, errors: [] })
@@ -133,30 +186,42 @@ export default function ImportModal({ apps, onClose, onDone }) {
     for (let i = 0; i < toImport.length; i++) {
       const r = toImport[i]
       try {
-        await createRelease({
-          app:             r.appId,
-          releaseDate:     r.releaseDate,
-          version:         r.version,
-          rollout:         r.rollout,
-          releaseNote:     r.releaseNote,
-          lastCheckedDate: r.lastCheckedDate || undefined,
-          status:          r.status || undefined,
-          reviewNotes:     r.reviewNotes || undefined,
-        })
+        if (r._action === 'update' && r._targetId) {
+          // Repair mode: fill HN ID, app link, and correct rollout
+          await updateRelease(r._targetId, {
+            hnId:   r.hnId   || undefined,
+            app:    r.appId  || undefined,
+            rollout: r.rollout || undefined,
+          })
+        } else {
+          await createRelease({
+            app:             r.appId || undefined,
+            hnId:            r.hnId || undefined,
+            releaseDate:     r.releaseDate,
+            version:         r.version,
+            rollout:         r.rollout,
+            releaseNote:     r.releaseNote,
+            lastCheckedDate: r.lastCheckedDate || undefined,
+            status:          r.status || undefined,
+            reviewNotes:     r.reviewNotes || undefined,
+          })
+        }
       } catch (e) {
         errors.push(`${r.rawAppName}: ${e.message}`)
       }
       setProgress(p => ({ ...p, done: i + 1, errors }))
-      // small delay to avoid rate limit
       await new Promise(res => setTimeout(res, 150))
     }
     setStep('done')
     setProgress(p => ({ ...p, errors }))
   }
 
-  const matched   = rows.filter(r => r.appId && r.releaseDate && !r._skip).length
-  const unmatched = rows.filter(r => !r.appId).length
-  const skipped   = rows.filter(r => r._skip).length
+  const matched     = rows.filter(r => r.appId  && r.releaseDate && !r._skip).length
+  const unmatched   = rows.filter(r => !r.appId && r.releaseDate && !r._skip).length
+  const skipped     = rows.filter(r => r._skip).length
+  const toUpdate    = rows.filter(r => r._action === 'update' && !r._skip).length
+  const toCreate    = rows.filter(r => r._action === 'create' && !r._skip && mode === 'update').length
+  const totalImport = rows.filter(r => !r._skip && r.releaseDate).length
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(0,0,0,0.45)' }}
@@ -169,7 +234,8 @@ export default function ImportModal({ apps, onClose, onDone }) {
             <h2 className="font-semibold text-base">Import từ Excel</h2>
             <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>
               {step === 'upload' && 'Chọn file .xlsx để import hàng loạt'}
-              {step === 'preview' && `${rows.length} dòng — ${matched} sẽ được import, ${unmatched} chưa map được app, ${skipped} bỏ qua`}
+              {step === 'preview' && mode === 'import' && `${rows.length} dòng — ${matched} có app, ${unmatched} không có app, ${skipped} bỏ qua`}
+              {step === 'preview' && mode === 'update' && `${rows.length} dòng — ${toUpdate} update, ${toCreate} tạo mới, ${skipped} bỏ qua`}
               {step === 'importing' && `Đang import... ${progress.done}/${progress.total}`}
               {step === 'done' && `Hoàn tất! ${progress.done - progress.errors.length}/${progress.done} thành công`}
             </p>
@@ -182,12 +248,31 @@ export default function ImportModal({ apps, onClose, onDone }) {
 
           {/* Upload step */}
           {step === 'upload' && (
-            <div className="flex flex-col items-center justify-center py-16 px-6 gap-4">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl" style={{ background: '#f0fdf4' }}>📊</div>
-              <p className="text-sm font-medium">Kéo thả hoặc chọn file Excel</p>
-              <p className="text-xs text-center" style={{ color: '#94a3b8', maxWidth: 400 }}>
-                Hỗ trợ cột: <strong>App Name</strong> (có HN ID), <strong>Release Date</strong>, <strong>Version</strong>, <strong>Roll-out</strong>, <strong>Description</strong>, <strong>Status</strong>, <strong>Review Notes</strong>
+            <div className="flex flex-col items-center justify-center py-12 px-6 gap-4">
+              {/* Mode toggle */}
+              <div className="flex rounded-xl overflow-hidden border border-surface-200 text-sm font-medium">
+                {[
+                  { value: 'import', label: '➕ Import mới' },
+                  { value: 'update', label: '✏️ Update record' },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => setMode(value)}
+                    className="px-5 py-2.5 transition-colors"
+                    style={{
+                      background: mode === value ? '#0d9488' : '#fff',
+                      color:      mode === value ? '#fff' : '#64748b',
+                    }}
+                  >{label}</button>
+                ))}
+              </div>
+              <p className="text-xs text-center" style={{ color: '#94a3b8', maxWidth: 420 }}>
+                {mode === 'import'
+                  ? <>Tạo records mới. Hỗ trợ cột: <strong>App Name</strong>, <strong>Release Date</strong>, <strong>Version</strong>, <strong>Roll-out</strong>, <strong>Description</strong>, <strong>Status</strong>, <strong>Review Notes</strong></>
+                  : <>Chỉ điền HN ID cho records đang trống. Match theo <strong>Release Date + Version</strong>. Records đã có HN ID sẽ bị bỏ qua.</>
+                }
               </p>
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl" style={{ background: '#f0fdf4' }}>📊</div>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
               <button
                 onClick={() => fileRef.current?.click()}
@@ -200,11 +285,36 @@ export default function ImportModal({ apps, onClose, onDone }) {
 
           {/* Preview step */}
           {step === 'preview' && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-surface-50 border-b border-surface-200">
+            <div style={{ overflow: 'auto' }}>
+              <table className="w-full text-xs" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f8fafc' }} className="border-b border-surface-200">
                   <tr>
-                    {['', 'App Name (Excel)', 'HN ID', 'Match', 'Ngày', 'Version', 'Roll-out', 'Mô tả', 'Status'].map(h => (
+                    <th className="px-3 py-2 w-8">
+                      {(() => {
+                        const isSelectable = r => mode === 'update'
+                          ? (r._action === 'update' || r._action === 'create')
+                          : !!r.releaseDate
+                        const selectableRows = rows.filter(isSelectable)
+                        const allChecked = selectableRows.length > 0 && selectableRows.every(r => !r._skip)
+                        const someChecked = selectableRows.some(r => !r._skip)
+                        return (
+                          <input
+                            type="checkbox"
+                            className="cursor-pointer"
+                            checked={allChecked}
+                            ref={el => { if (el) el.indeterminate = !allChecked && someChecked }}
+                            onChange={() => {
+                              const shouldCheck = !allChecked
+                              setRows(rs => rs.map(r => {
+                                if (!isSelectable(r)) return r
+                                return { ...r, _skip: !shouldCheck }
+                              }))
+                            }}
+                          />
+                        )
+                      })()}
+                    </th>
+                    {['App Name (Excel)', 'HN ID', 'Match', 'Ngày', 'Version', 'Roll-out', 'Mô tả', 'Status', 'Action'].map(h => (
                       <th key={h} className="px-3 py-2 text-left font-medium whitespace-nowrap" style={{ color: '#64748b' }}>{h}</th>
                     ))}
                   </tr>
@@ -228,6 +338,11 @@ export default function ImportModal({ apps, onClose, onDone }) {
                       <td className="px-3 py-2">{r.rollout || '--'}</td>
                       <td className="px-3 py-2 max-w-[180px] truncate" style={{ color: '#64748b' }} title={r.releaseNote}>{r.releaseNote || '—'}</td>
                       <td className="px-3 py-2">{r.status || '—'}</td>
+                      <td className="px-3 py-2">
+                        {r._action === 'update' && <span className="px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: '#dbeafe', color: '#1d4ed8' }}>✏ Update</span>}
+                        {r._action === 'skip'   && <span className="px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: '#f1f5f9', color: '#94a3b8' }}>— Bỏ qua</span>}
+                        {r._action === 'create' && <span className="px-1.5 py-0.5 rounded text-xs font-medium" style={{ background: '#d1fae5', color: '#065f46' }}>+ Tạo</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -275,12 +390,14 @@ export default function ImportModal({ apps, onClose, onDone }) {
               <>
                 <button className="btn-secondary text-sm" onClick={() => setStep('upload')}>← Chọn file khác</button>
                 <button
-                  disabled={matched === 0}
+                  disabled={totalImport === 0}
                   onClick={handleImport}
                   className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                   style={{ background: '#0d9488' }}
                 >
-                  Import {matched} records →
+                  {mode === 'update'
+                    ? `✏ Update ${toUpdate} + Tạo ${toCreate} records →`
+                    : `Import ${totalImport} records →`}
                 </button>
               </>
             )}

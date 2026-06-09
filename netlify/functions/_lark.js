@@ -27,25 +27,27 @@ export function larkHeaders(token) {
   }
 }
 
-export const BASE_URL       = 'https://open.larksuite.com/open-apis/bitable/v1'
-export const BASE_ID        = process.env.LARK_BASE_ID
-export const TBL_RELEASES   = process.env.LARK_TABLE_RELEASES
-export const TBL_APPS       = process.env.LARK_TABLE_APPS
+export const BASE_URL        = 'https://open.larksuite.com/open-apis/bitable/v1'
+export const BASE_ID         = process.env.LARK_BASE_ID
+export const TBL_RELEASES    = process.env.LARK_TABLE_RELEASES
+export const TBL_APPS        = process.env.LARK_TABLE_APPS
+export const TBL_TIMELINE    = process.env.LARK_TABLE_TIMELINE
+export const TBL_ACTIVITIES  = process.env.LARK_TABLE_ACTIVITIES
 
 export function mapRelease(record) {
   const f = record.fields
   return {
     id:              record.record_id,
-    releaseDate:     f['Release Date'] ? new Date(f['Release Date']).toISOString().slice(0, 10) : '',
+    releaseDate:     f['Release Date'] ? new Date(f['Release Date'] + 7*3600000).toISOString().slice(0, 10) : '',
     app:             Array.isArray(f['App']) ? f['App'][0]?.text || '' : (f['App'] || ''),
     appName:         Array.isArray(f['App']) ? f['App'][0]?.text || '' : (f['App'] || ''),
     hnId:            Array.isArray(f['HN ID']) ? f['HN ID'][0]?.text || '' : (f['HN ID'] || ''),
     platform:        Array.isArray(f['Platform']) ? f['Platform'][0]?.text || '' : (f['Platform'] || ''),
     version:         f['Version'] || '',
-    rollout:         f['Roll-out'] || '--',
+    rollout:         larkText(f['Roll-out']) || '--',
     releaseNote:     f['Release Note'] || '',
     status:          f['Status'] || '',
-    reviewer:        Array.isArray(f['Reviewer']) ? f['Reviewer'][0]?.name || '' : (f['Reviewer'] || ''),
+    reviewer:        larkText(f['Reviewer']),
     lastCheckedDate: f['Last Checked Date'] ? new Date(f['Last Checked Date']).toISOString().slice(0, 10) : '',
     reviewNotes:     f['Review Notes'] || '',
   }
@@ -77,18 +79,73 @@ export function mapApp(record) {
     platform:   larkText(f['Platform']),
     appLink:    larkText(f['App Link']),
     appLinkUrl: larkUrl(f['App Link']),
+    status:     larkText(f['Status']),
   }
+}
+
+function larkDate(v) {
+  if (!v) return ''
+  if (typeof v === 'number') return new Date(v).toISOString().slice(0, 10)
+  return String(v).slice(0, 10)
+}
+
+export function mapTimeline(record) {
+  const f = record.fields
+  return {
+    id:          record.record_id,
+    alpId:       larkText(f['Alp ID']),
+    hnId:        larkText(f['HN ID']),
+    figmaStart:  larkDate(f['Figma Start']),
+    figmaEnd:    larkDate(f['Figma End']),
+    devStart:    larkDate(f['Dev Start']),
+    testStart:   larkDate(f['Test start']),
+    liveFullAds: larkDate(f['Live full ads']),
+    liveIap:     larkDate(f['Live iAP']),
+  }
+}
+
+export function mapActivity(record) {
+  const f = record.fields
+  return {
+    id:             record.record_id,
+    alpId:          larkText(f['Alp ID']),
+    hnId:           larkText(f['HN ID']),
+    show:           larkText(f['Show']),
+    config:         larkText(f['Config']),
+    localNoti:      larkText(f['Local Noti']),
+    iap:            f['iAP'] === true || f['iAP'] === 1,
+    requestUpdate:  f['Request Update'] === true || f['Request Update'] === 1,
+    linkRequest:    larkUrl(f['Link Request'])   || larkText(f['Link Request']),
+    linkRequest2:   larkUrl(f['Link Request 2']) || larkText(f['Link Request 2']),
+    linkRequest3:   larkUrl(f['Link Request 3']) || larkText(f['Link Request 3']),
+    linkRequest4:   larkUrl(f['Link Request 4']) || larkText(f['Link Request 4']),
+  }
+}
+
+export function buildActivityFields(data) {
+  const fields = {}
+  if (data.show          !== undefined) fields['Show']           = data.show
+  if (data.config        !== undefined) fields['Config']         = data.config
+  if (data.localNoti     !== undefined) fields['Local Noti']     = data.localNoti
+  if (data.iap           !== undefined) fields['iAP']            = !!data.iap
+  if (data.requestUpdate !== undefined) fields['Request Update'] = data.requestUpdate
+  if (data.linkRequest   !== undefined) fields['Link Request']   = data.linkRequest ? { link: data.linkRequest, text: data.linkRequest } : null
+  if (data.linkRequest2  !== undefined) fields['Link Request 2'] = data.linkRequest2 ? { link: data.linkRequest2, text: data.linkRequest2 } : null
+  if (data.linkRequest3  !== undefined) fields['Link Request 3'] = data.linkRequest3 ? { link: data.linkRequest3, text: data.linkRequest3 } : null
+  if (data.linkRequest4  !== undefined) fields['Link Request 4'] = data.linkRequest4 ? { link: data.linkRequest4, text: data.linkRequest4 } : null
+  return fields
 }
 
 export function buildReleaseFields(data) {
   const fields = {}
   if (data.releaseDate)          fields['Release Date']      = new Date(data.releaseDate).getTime()
   if (data.app)                  fields['App']               = [data.app]
+  if (data.hnId)                 fields['HN ID']             = data.hnId
   if (data.version)              fields['Version']           = data.version
   if (data.rollout)              fields['Roll-out']          = data.rollout
   if (data.releaseNote)          fields['Release Note']      = data.releaseNote
   if (data.status !== undefined) fields['Status']            = data.status
-  // NOTE: Reviewer is a Lark person field — requires user IDs, skip on write to avoid API error
+  if (data.reviewer)             fields['Reviewer']          = data.reviewer
   if (data.lastCheckedDate)      fields['Last Checked Date'] = new Date(data.lastCheckedDate).getTime()
   if (data.reviewNotes)          fields['Review Notes']      = data.reviewNotes
   return fields

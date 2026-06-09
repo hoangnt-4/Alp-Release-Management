@@ -3,3 +3,6 @@ dist
 .env.local
 .env
 .netlify
+parsed_releases.json
+import-to-lark.mjs
+vite.config.js.timestamp-*

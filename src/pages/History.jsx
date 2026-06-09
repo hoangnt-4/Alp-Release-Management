@@ -1,14 +1,16 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useReleasesStore } from '../hooks/useReleasesStore'
-import { updateRelease, createRelease } from '../lib/lark'
+import { updateRelease, createRelease, getActivities } from '../lib/lark'
+import { diffAndRecord } from '../lib/activityHistory'
 import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
 import ImportModal from '../components/ImportModal'
+import AppDetailModal from '../components/AppDetailModal'
 import { PlatformBadge, RolloutBadge } from './Dashboard'
 import clsx from 'clsx'
 
-const STATUS_OPTS = ['', 'Checked', 'Updated', 'Pending Review']
-const ROLLOUT_OPTS = ['', '--', '1%', '5%', '10%', '20%', '50%', '99%', '100%']
+const STATUS_OPTS = ['', 'Checked', 'Updated', 'Pending Review', 'Checking', 'New']
+const ROLLOUT_OPTS = ['', '--', '20%', '30%', '40%', '50%', '99%', '100%']
 const EMPTY_FORM  = { app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' }
 
 function sortRows(rows, key, dir) {
@@ -22,13 +24,13 @@ function sortRows(rows, key, dir) {
 export default function History() {
   const { releases, apps, loading, refresh, watchlist, toggleWatchlist } = useReleasesStore()
 
-  const [filter, setFilter] = useState({ search: '', status: '', platform: '', rollout: '', dateFrom: '', dateTo: '' })
+  const [filter, setFilter] = useState({ search: '', status: '', platform: '', rollout: '', dateFrom: '', dateTo: '', requestUpdate: false })
   const [sort, setSort]     = useState({ key: 'releaseDate', dir: 'desc' })
   const [page, setPage]     = useState(1)
-  const PER = 20
+  const [perPage, setPerPage] = useState(25)
 
   const [reviewModal, setReviewModal] = useState(null)
-  const [reviewForm, setReviewForm]   = useState({ status: '', reviewNotes: '', lastCheckedDate: '' })
+  const [reviewForm, setReviewForm]   = useState({ status: '', reviewNotes: '', lastCheckedDate: '', reviewer: 'Hieu' })
   const [saving, setSaving]           = useState(false)
 
   const [addModal, setAddModal]       = useState(false)
@@ -39,6 +41,21 @@ export default function History() {
   const [editModal, setEditModal]       = useState(null)
   const [editForm, setEditForm]         = useState({})
   const [editSaving, setEditSaving]     = useState(false)
+  const [activities, setActivities]     = useState({})
+  const [detailApp, setDetailApp]       = useState(null)
+
+  useEffect(() => {
+    getActivities().then(res => {
+      const records = res.records || []
+      diffAndRecord(records)
+      const map = {}
+      for (const r of records) {
+        if (r.hnId)  map[r.hnId.toLowerCase()]  = r
+        if (r.alpId) map[r.alpId.toLowerCase()] = r
+      }
+      setActivities(map)
+    }).catch(() => {})
+  }, [])
 
   const [importModal, setImportModal]   = useState(false)
 
@@ -68,6 +85,19 @@ export default function History() {
     setAddForm(f => ({ ...f, app: app?.id || '' }))
   }
 
+  // Latest version for a given app (by hnId or alpId)
+  const getLatestVersion = (app) => {
+    if (!app) return null
+    const appReleases = releases
+      .filter(r =>
+        (app.hnId  && (r.hnId || '').toLowerCase() === app.hnId.toLowerCase()) ||
+        (app.alpId && (r.appName || r.app || '').toLowerCase() === app.alpId.toLowerCase())
+      )
+      .filter(r => r.version)
+      .sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''))
+    return appReleases[0] || null
+  }
+
   const handleAdd = async () => {
     if (!addForm.app || !addForm.releaseDate) return
     setAddSaving(true)
@@ -85,20 +115,24 @@ export default function History() {
       if (filter.rollout  && r.rollout !== filter.rollout) return false
       if (filter.dateFrom && r.releaseDate && r.releaseDate < filter.dateFrom) return false
       if (filter.dateTo   && r.releaseDate && r.releaseDate > filter.dateTo)   return false
+      if (filter.requestUpdate) {
+        const act = activities[r.hnId?.toLowerCase()] || activities[(r.appName || r.app)?.toLowerCase()]
+        if (!act?.requestUpdate) return false
+      }
       if (q && !`${r.appName || r.app || ''} ${r.hnId || ''} ${r.version || ''} ${r.releaseNote || ''}`.toLowerCase().includes(q)) return false
       return true
     })
-  }, [releases, filter])
+  }, [releases, filter, activities])
 
-  const sorted    = useMemo(() => sortRows(filtered, sort.key, sort.dir), [filtered, sort])
-  const totalPages = Math.ceil(sorted.length / PER)
-  const paged     = sorted.slice((page - 1) * PER, page * PER)
+  const sorted     = useMemo(() => sortRows(filtered, sort.key, sort.dir), [filtered, sort])
+  const totalPages = Math.ceil(sorted.length / perPage)
+  const paged      = sorted.slice((page - 1) * perPage, page * perPage)
 
   const toggleSort = (key) => setSort(s => ({ key, dir: s.key === key && s.dir === 'desc' ? 'asc' : 'desc' }))
   const SortIcon = ({ k }) => sort.key === k ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''
 
   const openReview = (r) => {
-    setReviewForm({ status: r.status || '', reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10) })
+    setReviewForm({ status: r.status || 'Checked', reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10), reviewer: r.reviewer || 'Hieu' })
     setReviewModal(r)
   }
 
@@ -112,8 +146,8 @@ export default function History() {
     } finally { setSaving(false) }
   }
 
-  const hasFilter = filter.search || filter.status || filter.platform || filter.rollout || filter.dateFrom || filter.dateTo
-  const clearFilter = () => { setFilter({ search: '', status: '', platform: '', rollout: '', dateFrom: '', dateTo: '' }); setPage(1) }
+  const hasFilter = filter.search || filter.status || filter.platform || filter.rollout || filter.dateFrom || filter.dateTo || filter.requestUpdate
+  const clearFilter = () => { setFilter({ search: '', status: '', platform: '', rollout: '', dateFrom: '', dateTo: '', requestUpdate: false }); setPage(1) }
 
   return (
     <div className="p-6 space-y-4">
@@ -195,16 +229,19 @@ export default function History() {
                 <tr><td colSpan={11} className="px-3 py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Không có kết quả</td></tr>
               ) : paged.map((r, i) => (
                 <tr key={r.id} className="hover:bg-surface-50 transition-colors">
-                  <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#94a3b8' }}>{(page - 1) * PER + i + 1}</td>
+                  <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#94a3b8' }}>{(page - 1) * perPage + i + 1}</td>
                   <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap" style={{ color: '#64748b' }}>{r.releaseDate || '—'}</td>
                   <td className="px-3 py-2.5 max-w-[200px]">
-                    <div className="flex items-start gap-1.5">
+                    <div className="flex items-start gap-1.5 flex-wrap">
                       <PlatformBadge platform={r.platform} />
                       <button
                         onClick={() => openEditModal(r)}
                         className="font-medium text-xs leading-relaxed text-left hover:underline"
                         style={{ color: '#1e2235' }}
                       >{r.appName || r.app || '—'}</button>
+                      {(() => { const act = activities[r.hnId?.toLowerCase()] || activities[(r.appName || r.app)?.toLowerCase()]; return (<>
+                        {act?.requestUpdate && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#fef3c7', color: '#d97706' }}>⚡</span>}
+                      </>) })()}
                     </div>
                   </td>
                   <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#64748b' }}>{r.hnId || '—'}</td>
@@ -246,15 +283,23 @@ export default function History() {
           </table>
         </div>
 
-        {totalPages > 1 && (
-          <div className="px-4 py-3 border-t border-surface-200 flex items-center justify-between">
-            <span className="text-xs" style={{ color: '#94a3b8' }}>Trang {page} / {totalPages} ({filtered.length} kết quả)</span>
-            <div className="flex gap-1">
-              <button className="btn-secondary text-xs py-1 px-3" disabled={page === 1} onClick={() => setPage(p => p - 1)}>←</button>
-              <button className="btn-secondary text-xs py-1 px-3" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>→</button>
-            </div>
+        <div className="px-4 py-3 border-t border-surface-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-xs" style={{ color: '#94a3b8' }}>Trang {page} / {totalPages || 1} ({filtered.length} kết quả)</span>
+            <select
+              className="text-xs border border-surface-200 rounded-lg px-2 py-1"
+              style={{ color: '#64748b' }}
+              value={perPage}
+              onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }}
+            >
+              {[25, 50, 100].map(n => <option key={n} value={n}>{n} / trang</option>)}
+            </select>
           </div>
-        )}
+          <div className="flex gap-1">
+            <button className="btn-secondary text-xs py-1 px-3" disabled={page === 1} onClick={() => setPage(p => p - 1)}>←</button>
+            <button className="btn-secondary text-xs py-1 px-3" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>→</button>
+          </div>
+        </div>
       </div>
 
       {/* Edit Modal */}
@@ -265,23 +310,67 @@ export default function History() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-surface-200">
               <div>
                 <h2 className="font-semibold">Chỉnh sửa bản phát hành</h2>
-                <p className="text-xs mt-0.5 flex items-center gap-1.5" style={{ color: '#94a3b8' }}>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <PlatformBadge platform={editModal.platform} />
-                  {editModal.appName || editModal.app}
-                </p>
+                  <span className="text-xs" style={{ color: '#64748b' }}>{editModal.appName || editModal.app}</span>
+                  {(() => { const act = activities[editModal.hnId?.toLowerCase()] || activities[(editModal.appName || editModal.app)?.toLowerCase()]; return (<>
+                    {act?.requestUpdate && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#fef3c7', color: '#d97706' }}>⚡ Request Update</span>}
+                    {(() => {
+                      const LOCAL_NOTI_BADGE = {
+                        'Live':          { bg: '#dcfce7', color: '#16a34a', label: '🔔' },
+                        'Required':      { bg: '#fef3c7', color: '#b45309', label: '🔔 Required' },
+                        'Ready for Dev': { bg: '#dbeafe', color: '#1d4ed8', label: '🔔 Ready for Dev' },
+                        'Writing':       { bg: '#e0f2fe', color: '#0369a1', label: '🔔 Writing' },
+                        'Coding':        { bg: '#ede9fe', color: '#6d28d9', label: '🔔 Coding' },
+                      }
+                      const s = LOCAL_NOTI_BADGE[act?.localNoti]
+                      return s ? <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: s.bg, color: s.color }}>{s.label}</span> : null
+                    })()}
+                  </>) })()}
+                  {(() => {
+                    const matchedApp = apps.find(a =>
+                      (editModal.hnId && a.hnId === editModal.hnId) ||
+                      a.alpId?.toLowerCase() === (editModal.appName || editModal.app)?.toLowerCase()
+                    )
+                    const latest = matchedApp ? getLatestVersion(matchedApp) : null
+                    if (!latest || latest.version === editModal.version) return null
+                    return (
+                      <span className="text-xs" style={{ color: '#94a3b8' }}>
+                        · Version mới nhất:{' '}
+                        <span className="font-mono font-semibold px-1 py-0.5 rounded" style={{ background: '#f0fdf4', color: '#0d9488' }}>
+                          {latest.version}
+                        </span>
+                      </span>
+                    )
+                  })()}
+                </div>
               </div>
-              <button onClick={() => setEditModal(null)} className="text-xl" style={{ color: '#94a3b8' }}>✕</button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const matchedApp = apps.find(a =>
+                      (editModal.hnId && a.hnId === editModal.hnId) ||
+                      a.alpId?.toLowerCase() === (editModal.appName || editModal.app)?.toLowerCase()
+                    )
+                    if (matchedApp) { setEditModal(null); setDetailApp(matchedApp) }
+                  }}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-surface-200 hover:bg-surface-50 transition-colors"
+                  style={{ color: '#64748b' }}
+                  title="Mở chi tiết app"
+                >⊞ Chi tiết app</button>
+                <button onClick={() => setEditModal(null)} className="text-xl" style={{ color: '#94a3b8' }}>✕</button>
+              </div>
             </div>
             <div className="p-5 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version</label>
+                  <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version <span style={{ color: '#ef4444' }}>*</span></label>
                   <input className="input" placeholder="1.2.3" value={editForm.version} onChange={e => setEditForm(f => ({ ...f, version: e.target.value }))} />
                 </div>
                 <div>
                   <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Roll-out</label>
                   <select className="input" value={editForm.rollout} onChange={e => setEditForm(f => ({ ...f, rollout: e.target.value }))}>
-                    {['--','1%','5%','10%','20%','50%','99%','100%'].map(o => <option key={o}>{o}</option>)}
+                    {['--','20%','30%','40%','50%','99%','100%'].map(o => <option key={o}>{o}</option>)}
                   </select>
                 </div>
               </div>
@@ -320,26 +409,38 @@ export default function History() {
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>App *</label>
                 <AppCombobox apps={apps} selectedApp={selectedApp} onSelect={handleSelectApp} />
-                {selectedApp && (
-                  <div className="flex items-center gap-3 mt-1.5 px-1">
-                    <span className="text-xs" style={{ color: '#94a3b8' }}>
-                      Platform: <span className="font-medium" style={{ color: '#64748b' }}>{selectedApp.platform || '—'}</span>
-                    </span>
-                    <span className="text-xs" style={{ color: '#94a3b8' }}>
-                      HN ID: <span className="font-medium font-mono" style={{ color: '#64748b' }}>{selectedApp.hnId || '—'}</span>
-                    </span>
-                  </div>
-                )}
+                {selectedApp && (() => {
+                  const latest = getLatestVersion(selectedApp)
+                  return (
+                    <div className="flex items-center gap-3 mt-1.5 px-1">
+                      <span className="text-xs" style={{ color: '#94a3b8' }}>
+                        Platform: <span className="font-medium" style={{ color: '#64748b' }}>{selectedApp.platform || '—'}</span>
+                      </span>
+                      <span className="text-xs" style={{ color: '#94a3b8' }}>
+                        HN ID: <span className="font-medium font-mono" style={{ color: '#64748b' }}>{selectedApp.hnId || '—'}</span>
+                      </span>
+                      {latest && (
+                        <span className="text-xs" style={{ color: '#94a3b8' }}>
+                          Version hiện tại:{' '}
+                          <span className="font-mono font-semibold px-1 py-0.5 rounded" style={{ background: '#f0fdf4', color: '#0d9488' }}>
+                            {latest.version}
+                          </span>
+                          <span className="ml-1" style={{ color: '#cbd5e1' }}>({latest.releaseDate})</span>
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version</label>
+                  <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version <span style={{ color: '#ef4444' }}>*</span></label>
                   <input className="input" placeholder="1.2.3" value={addForm.version} onChange={e => setAddForm(f => ({ ...f, version: e.target.value }))} />
                 </div>
                 <div>
                   <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Roll-out</label>
                   <select className="input" value={addForm.rollout} onChange={e => setAddForm(f => ({ ...f, rollout: e.target.value }))}>
-                    {['--','1%','5%','10%','20%','50%','99%','100%'].map(o => <option key={o}>{o}</option>)}
+                    {['--','20%','30%','40%','50%','99%','100%'].map(o => <option key={o}>{o}</option>)}
                   </select>
                 </div>
               </div>
@@ -369,6 +470,7 @@ export default function History() {
       {importModal && (
         <ImportModal
           apps={apps}
+          releases={releases}
           onClose={() => setImportModal(false)}
           onDone={() => { setImportModal(false); refresh() }}
         />
@@ -398,6 +500,12 @@ export default function History() {
                 <input type="date" className="input" value={reviewForm.lastCheckedDate} onChange={e => setReviewForm(f => ({ ...f, lastCheckedDate: e.target.value }))} />
               </div>
               <div>
+                <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Reviewer</label>
+                <select className="input" value={reviewForm.reviewer} onChange={e => setReviewForm(f => ({ ...f, reviewer: e.target.value }))}>
+                  {['Hieu', 'Hoa Nguyen', 'Tuan Hoang'].map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Ghi chú review</label>
                 <textarea className="input resize-none" rows={3} placeholder="crash-free >99%, UI đúng design..." value={reviewForm.reviewNotes} onChange={e => setReviewForm(f => ({ ...f, reviewNotes: e.target.value }))} />
               </div>
@@ -414,6 +522,8 @@ export default function History() {
           </div>
         </div>
       )}
+
+      {detailApp && <AppDetailModal app={detailApp} onClose={() => setDetailApp(null)} />}
     </div>
   )
 }
