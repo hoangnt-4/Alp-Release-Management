@@ -17,13 +17,15 @@
         "npm:autoprefixer@^10.4.19",
         "npm:clsx@^2.1.1",
         "npm:date-fns@^3.6.0",
+        "npm:netlify-identity-widget@^2.0.3",
         "npm:postcss@^8.4.40",
         "npm:react-dom@^18.3.1",
         "npm:react-router-dom@^6.26.0",
         "npm:react@^18.3.1",
         "npm:recharts@^2.12.7",
         "npm:tailwindcss@^3.4.9",
-        "npm:vite@^5.4.0"
+        "npm:vite@^5.4.0",
+        "npm:xlsx@~0.18.5"
       ]
     }
   }

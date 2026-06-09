@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useReleasesStore } from '../hooks/useReleasesStore'
+import { useAuth } from '../hooks/useAuth'
 import { downloadCSV } from '../lib/lark'
 import ActivityHistoryModal from './ActivityHistoryModal'
 import clsx from 'clsx'
@@ -35,6 +36,7 @@ const NAV = [
 
 export default function Layout({ children }) {
   const { counts, releases, apps, refresh, loading } = useReleasesStore()
+  const { user, logout } = useAuth()
   const [collapsed, setCollapsed]   = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -172,6 +174,27 @@ export default function Layout({ children }) {
             <span className="text-sm">?</span>
             {!collapsed && 'Hướng dẫn'}
           </Link>
+
+          {/* User + Logout */}
+          {user && (
+            <div className="pt-1 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+              {!collapsed && (
+                <div className="px-2.5 py-1.5 text-xs truncate" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                  {user.email || user.name}
+                </div>
+              )}
+              <button
+                onClick={logout}
+                className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm transition-colors"
+                style={{ color: 'rgba(255,255,255,0.4)' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#f87171'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
+              >
+                <span className="text-sm">⎋</span>
+                {!collapsed && 'Đăng xuất'}
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
