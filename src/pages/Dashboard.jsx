@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useReleasesStore } from '../hooks/useReleasesStore'
-import { createRelease, updateRelease, deleteRelease, getActivities } from '../lib/lark'
+import { createRelease, updateRelease, deleteRelease } from '../lib/lark'
 import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
 import AppDetailModal from '../components/AppDetailModal'
@@ -10,7 +10,7 @@ const ROLLOUT_OPTIONS = ['--', '1%', '5%', '10%', '20%', '50%', '99%', '100%']
 const EMPTY = { app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' }
 
 export default function Dashboard() {
-  const { releases, apps, appLinkMap, loading, counts, refresh, watchlist, toggleWatchlist, addReleaseHint, addOptimisticRelease } = useReleasesStore()
+  const { releases, apps, appLinkMap, activities, loading, counts, refresh, watchlist, toggleWatchlist, addReleaseHint, addOptimisticRelease } = useReleasesStore()
   const [form, setForm]               = useState(EMPTY)
   const [selectedApp, setSelectedApp] = useState(null)
   const [saving, setSaving]           = useState(false)
@@ -29,19 +29,7 @@ export default function Dashboard() {
   const [reviewModal, setReviewModal] = useState(null)
   const [reviewForm, setReviewForm]   = useState({ status: 'Checked', reviewNotes: '', lastCheckedDate: '', reviewer: 'Hieu' })
   const [reviewSaving, setReviewSaving] = useState(false)
-  const [activities, setActivities]     = useState({})
   const [detailApp, setDetailApp]       = useState(null)
-
-  useEffect(() => {
-    getActivities().then(res => {
-      const map = {}
-      for (const r of res.records || []) {
-        if (r.hnId)  map[r.hnId.toLowerCase()]  = r
-        if (r.alpId) map[r.alpId.toLowerCase()] = r
-      }
-      setActivities(map)
-    }).catch(() => {})
-  }, [])
 
   const openReview = (r) => {
     setReviewForm({ status: r.status || 'Checked', reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10), reviewer: r.reviewer || 'Hieu' })

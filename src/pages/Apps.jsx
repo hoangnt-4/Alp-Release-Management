@@ -3,8 +3,6 @@ import { useReleasesStore } from '../hooks/useReleasesStore'
 import { useLocation } from 'react-router-dom'
 import { PlatformBadge } from './Dashboard'
 import AppDetailModal from '../components/AppDetailModal'
-import { getTimeline, getActivities } from '../lib/lark'
-import { diffAndRecord } from '../lib/activityHistory'
 
 const STATUS_STYLES = {
   RUNNING:     { bg: '#dcfce7', color: '#166534' },
@@ -70,7 +68,7 @@ function MiniTimeline({ tl }) {
 }
 
 export default function Apps() {
-  const { apps, loading } = useReleasesStore()
+  const { apps, timelines, activities, loading } = useReleasesStore()
   const location = useLocation()
   const urlStatus = new URLSearchParams(location.search).get('status') || ''
 
@@ -88,31 +86,7 @@ export default function Apps() {
   useEffect(() => { setFilterStatus(urlStatus) }, [urlStatus])
   const [sort, setSort] = useState({ key: 'alpId', dir: 'asc' })
   const toggleSort = useCallback((key) => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' })), [])
-  const [detailApp, setDetailApp]     = useState(null)
-  const [timelines, setTimelines]     = useState({})
-  const [activities, setActivities]   = useState({})
-
-  useEffect(() => {
-    getTimeline().then(res => {
-      const map = {}
-      for (const r of res.records || []) {
-        if (r.hnId)  map[r.hnId.toLowerCase()]  = r
-        if (r.alpId) map[r.alpId.toLowerCase()] = r
-      }
-      setTimelines(map)
-    }).catch(() => {})
-
-    getActivities().then(res => {
-      const records = res.records || []
-      diffAndRecord(records)
-      const map = {}
-      for (const r of records) {
-        if (r.hnId)  map[r.hnId.toLowerCase()]  = r
-        if (r.alpId) map[r.alpId.toLowerCase()] = r
-      }
-      setActivities(map)
-    }).catch(() => {})
-  }, [])
+  const [detailApp, setDetailApp] = useState(null)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()

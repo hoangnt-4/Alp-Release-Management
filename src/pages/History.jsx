@@ -1,7 +1,6 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import { useReleasesStore } from '../hooks/useReleasesStore'
-import { updateRelease, createRelease, deleteRelease, getActivities } from '../lib/lark'
-import { diffAndRecord } from '../lib/activityHistory'
+import { updateRelease, createRelease, deleteRelease } from '../lib/lark'
 import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
 import ImportModal from '../components/ImportModal'
@@ -22,7 +21,7 @@ function sortRows(rows, key, dir) {
 }
 
 export default function History() {
-  const { releases, apps, appLinkMap, loading, refresh, addReleaseHint, addOptimisticRelease, watchlist, toggleWatchlist } = useReleasesStore()
+  const { releases, apps, appLinkMap, activities, loading, refresh, addReleaseHint, addOptimisticRelease, watchlist, toggleWatchlist } = useReleasesStore()
 
   const [filter, setFilter] = useState({ search: '', status: '', platform: '', rollout: '', dateFrom: '', dateTo: '', requestUpdate: false })
   const [sort, setSort]     = useState({ key: 'releaseDate', dir: 'desc' })
@@ -38,24 +37,10 @@ export default function History() {
   const [selectedApp, setSelectedApp] = useState(null)
   const [addSaving, setAddSaving]     = useState(false)
 
-  const [editModal, setEditModal]       = useState(null)
-  const [editForm, setEditForm]         = useState({})
-  const [editSaving, setEditSaving]     = useState(false)
-  const [activities, setActivities]     = useState({})
-  const [detailApp, setDetailApp]       = useState(null)
-
-  useEffect(() => {
-    getActivities().then(res => {
-      const records = res.records || []
-      diffAndRecord(records)
-      const map = {}
-      for (const r of records) {
-        if (r.hnId)  map[r.hnId.toLowerCase()]  = r
-        if (r.alpId) map[r.alpId.toLowerCase()] = r
-      }
-      setActivities(map)
-    }).catch(() => {})
-  }, [])
+  const [editModal, setEditModal]   = useState(null)
+  const [editForm, setEditForm]     = useState({})
+  const [editSaving, setEditSaving] = useState(false)
+  const [detailApp, setDetailApp]   = useState(null)
 
   const [importModal, setImportModal]   = useState(false)
 

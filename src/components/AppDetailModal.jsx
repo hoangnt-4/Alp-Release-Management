@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getTimeline, getActivities, updateActivity, updateRelease, deleteRelease } from '../lib/lark'
+import { updateActivity, updateRelease, deleteRelease } from '../lib/lark'
 import { addEvent } from '../lib/activityHistory'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { PlatformBadge, RolloutBadge } from '../pages/Dashboard'
@@ -311,11 +311,13 @@ function ActivitiesTab({ app, initialActivity, timeline }) {
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
 export default function AppDetailModal({ app, onClose }) {
-  const { releases, refresh } = useReleasesStore()
-  const [timeline, setTimeline]   = useState(null)
-  const [tlLoading, setTlLoading] = useState(true)
-  const [tab, setTab]             = useState('activities')
-  const [appActivity, setAppActivity] = useState(null)
+  const { releases, refresh, timelines, activities } = useReleasesStore()
+  const [tab, setTab] = useState('activities')
+
+  const tlKey = app.hnId?.toLowerCase() || app.alpId?.toLowerCase() || ''
+  const actKey = app.hnId?.toLowerCase() || app.alpId?.toLowerCase() || ''
+  const timeline    = timelines[tlKey] || null
+  const appActivity = activities[actKey] || null
 
   // Edit modal
   const [editModal, setEditModal]   = useState(null)
@@ -359,48 +361,6 @@ export default function AppDetailModal({ app, onClose }) {
     finally { setReviewSaving(false) }
   }
 
-  useEffect(() => {
-    getActivities().then(async res => {
-      const match = (res.records || []).find(r =>
-        (app.hnId  && r.hnId?.toLowerCase()  === app.hnId?.toLowerCase()) ||
-        (app.alpId && r.alpId?.toLowerCase() === app.alpId?.toLowerCase())
-      )
-      if (!match) { setAppActivity(null); return }
-
-      // Auto-off requestUpdate nếu bản phát hành mới nhất có note "Update request"
-      if (match.requestUpdate) {
-        const appRels = releases
-          .filter(r =>
-            (app.hnId  && (r.hnId || '').toLowerCase()  === app.hnId?.toLowerCase()) ||
-            (app.alpId && (r.appName || r.app || '').toLowerCase() === app.alpId?.toLowerCase())
-          )
-          .sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''))
-        const latest = appRels[0]
-        if (latest?.releaseNote?.toLowerCase().includes('update request')) {
-          try {
-            await updateActivity(match.id, { requestUpdate: false })
-            setAppActivity({ ...match, requestUpdate: false })
-            return
-          } catch { /* ignore, still set original */ }
-        }
-      }
-      setAppActivity(match)
-    }).catch(() => {})
-  }, [app, releases])
-
-  useEffect(() => {
-    getTimeline()
-      .then(res => {
-        const records = res.records || []
-        const match = records.find(r =>
-          (app.hnId  && r.hnId?.toLowerCase()  === app.hnId?.toLowerCase()) ||
-          (app.alpId && r.alpId?.toLowerCase() === app.alpId?.toLowerCase())
-        )
-        setTimeline(match || null)
-      })
-      .catch(() => setTimeline(null))
-      .finally(() => setTlLoading(false))
-  }, [app])
 
   const appReleases = releases
     .filter(r =>
@@ -474,10 +434,7 @@ export default function AppDetailModal({ app, onClose }) {
           <div className="overflow-auto border-r border-surface-100 shrink-0" style={{ width: 220 }}>
             <div className="p-4">
               <p className="text-xs font-semibold uppercase mb-4" style={{ color: '#94a3b8', letterSpacing: '0.05em' }}>Timeline</p>
-              {tlLoading
-                ? <p className="text-xs text-center py-6" style={{ color: '#94a3b8' }}>Đang tải...</p>
-                : <VerticalTimeline timeline={timeline} />
-              }
+              <VerticalTimeline timeline={timeline} />
 
               <ReleaseEventSection
                 label="Update Request"
