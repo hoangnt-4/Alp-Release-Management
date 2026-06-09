@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useReleasesStore } from '../hooks/useReleasesStore'
-import { createRelease, updateRelease, getActivities } from '../lib/lark'
+import { createRelease, updateRelease, deleteRelease, getActivities } from '../lib/lark'
 import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
 import AppDetailModal from '../components/AppDetailModal'
@@ -10,7 +10,7 @@ const ROLLOUT_OPTIONS = ['--', '1%', '5%', '10%', '20%', '50%', '99%', '100%']
 const EMPTY = { app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' }
 
 export default function Dashboard() {
-  const { releases, apps, loading, counts, refresh, watchlist, toggleWatchlist } = useReleasesStore()
+  const { releases, apps, appLinkMap, loading, counts, refresh, watchlist, toggleWatchlist, addReleaseHint, addOptimisticRelease } = useReleasesStore()
   const [form, setForm]               = useState(EMPTY)
   const [selectedApp, setSelectedApp] = useState(null)
   const [saving, setSaving]           = useState(false)
@@ -67,6 +67,14 @@ export default function Dashboard() {
     finally { setEditSaving(false) }
   }
 
+  const handleDelete = async () => {
+    if (!editModal) return
+    if (!window.confirm(`Xoá release "${editModal.version || ''}" của ${editModal.appName || editModal.app || ''}?`)) return
+    setEditSaving(true)
+    try { await deleteRelease(editModal.id); setEditModal(null); refresh() }
+    finally { setEditSaving(false) }
+  }
+
   const recent = [...releases]
     .sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''))
     .filter(r => !search || `${r.appName || r.app} ${r.hnId} ${r.version} ${r.releaseNote}`.toLowerCase().includes(search.toLowerCase()))
@@ -74,14 +82,38 @@ export default function Dashboard() {
 
   const handleSelectApp = (app) => {
     setSelectedApp(app)
-    setForm(f => ({ ...f, app: app?.id || '' }))
+    const linkId = app ? (appLinkMap[(app.alpId || '').toLowerCase()] || '') : ''
+    setForm(f => ({ ...f, app: app?.id || '', hnId: app?.hnId || '', alpId: app?.alpId || '', appLinkId: linkId }))
+  }
+
+  // Latest version for a given app (by hnId or alpId)
+  const getLatestVersion = (app) => {
+    if (!app) return null
+    const appReleases = releases
+      .filter(r =>
+        (app.hnId  && (r.hnId || '').toLowerCase() === app.hnId.toLowerCase()) ||
+        (app.alpId && (r.appName || r.app || '').toLowerCase() === app.alpId.toLowerCase())
+      )
+      .filter(r => r.version)
+      .sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''))
+    return appReleases[0] || null
   }
 
   const handleAdd = async () => {
     if (!form.app || !form.releaseDate) return
     setSaving(true)
     try {
-      await createRelease(form)
+      const created = await createRelease(form)
+      if (created?.id && selectedApp) {
+        addReleaseHint(created.id, selectedApp)
+        addOptimisticRelease({
+          ...created,
+          appName:  selectedApp.alpId || selectedApp.hnId || '',
+          hnId:     selectedApp.hnId  || '',
+          platform: selectedApp.platform || '',
+          _appId:   selectedApp.id,
+        })
+      }
       setForm(EMPTY)
       setSelectedApp(null)
       setModal(false)
@@ -291,11 +323,16 @@ export default function Dashboard() {
                 <textarea className="input resize-none" rows={2} value={editForm.releaseNote} onChange={e => setEditForm(f => ({ ...f, releaseNote: e.target.value }))} />
               </div>
             </div>
-            <div className="flex justify-end gap-2 px-5 py-4 border-t border-surface-200">
-              <button className="btn-secondary" onClick={() => setEditModal(null)}>Huỷ</button>
-              <button onClick={handleEdit} disabled={editSaving} className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50" style={{ background: '#0d9488' }}>
-                {editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+            <div className="flex items-center justify-between px-5 py-4 border-t border-surface-200">
+              <button onClick={handleDelete} disabled={editSaving} className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50" style={{ color: '#ef4444', border: '1px solid #fecaca' }}>
+                🗑 Xoá
               </button>
+              <div className="flex gap-2">
+                <button className="btn-secondary" onClick={() => setEditModal(null)}>Huỷ</button>
+                <button onClick={handleEdit} disabled={editSaving} className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50" style={{ background: '#0d9488' }}>
+                  {editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -314,12 +351,28 @@ export default function Dashboard() {
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>App *</label>
                 <AppCombobox apps={apps} selectedApp={selectedApp} onSelect={handleSelectApp} placeholder="Tìm app theo tên hoặc HN ID..." />
-                {selectedApp && (
-                  <div className="flex items-center gap-3 mt-1.5 px-1">
-                    <span className="text-xs" style={{ color: '#94a3b8' }}>Platform: <span className="font-medium" style={{ color: '#64748b' }}>{selectedApp.platform || '—'}</span></span>
-                    <span className="text-xs" style={{ color: '#94a3b8' }}>HN ID: <span className="font-medium font-mono" style={{ color: '#64748b' }}>{selectedApp.hnId || '—'}</span></span>
-                  </div>
-                )}
+                {selectedApp && (() => {
+                  const latest = getLatestVersion(selectedApp)
+                  return (
+                    <div className="flex items-center gap-3 mt-1.5 px-1">
+                      <span className="text-xs" style={{ color: '#94a3b8' }}>
+                        Platform: <span className="font-medium" style={{ color: '#64748b' }}>{selectedApp.platform || '—'}</span>
+                      </span>
+                      <span className="text-xs" style={{ color: '#94a3b8' }}>
+                        HN ID: <span className="font-medium font-mono" style={{ color: '#64748b' }}>{selectedApp.hnId || '—'}</span>
+                      </span>
+                      {latest && (
+                        <span className="text-xs" style={{ color: '#94a3b8' }}>
+                          Version hiện tại:{' '}
+                          <span className="font-mono font-semibold px-1 py-0.5 rounded" style={{ background: '#f0fdf4', color: '#0d9488' }}>
+                            {latest.version}
+                          </span>
+                          <span className="ml-1" style={{ color: '#cbd5e1' }}>({latest.releaseDate})</span>
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

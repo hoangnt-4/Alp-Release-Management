@@ -41,6 +41,7 @@ export function mapRelease(record) {
     releaseDate:     f['Release Date'] ? new Date(f['Release Date'] + 7*3600000).toISOString().slice(0, 10) : '',
     app:             Array.isArray(f['App']) ? f['App'][0]?.text || '' : (f['App'] || ''),
     appName:         Array.isArray(f['App']) ? f['App'][0]?.text || '' : (f['App'] || ''),
+    appLinkId:       Array.isArray(f['App']) ? f['App'][0]?.record_ids?.[0] || '' : '',
     hnId:            Array.isArray(f['HN ID']) ? f['HN ID'][0]?.text || '' : (f['HN ID'] || ''),
     platform:        Array.isArray(f['Platform']) ? f['Platform'][0]?.text || '' : (f['Platform'] || ''),
     version:         f['Version'] || '',
@@ -139,8 +140,10 @@ export function buildActivityFields(data) {
 export function buildReleaseFields(data) {
   const fields = {}
   if (data.releaseDate)          fields['Release Date']      = new Date(data.releaseDate).getTime()
-  if (data.app)                  fields['App']               = { record_ids: [data.app] }
-  if (data.hnId)                 fields['HN ID']             = data.hnId
+  const appRecordId = data.appLinkId || data.app
+  if (appRecordId)               fields['App']               = [appRecordId]
+  const hnIdText = data.hnId || data.alpId
+  if (hnIdText)                  fields['HN ID']             = hnIdText
   if (data.version)              fields['Version']           = data.version
   if (data.rollout)              fields['Roll-out']          = data.rollout
   if (data.releaseNote)          fields['Release Note']      = data.releaseNote

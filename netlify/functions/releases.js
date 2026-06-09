@@ -44,6 +44,15 @@ export default async (req, context) => {
       )
       const data = await larkRes.json()
       if (data.code !== 0) throw new Error(data.msg)
+      // Re-fetch the created record so linked fields (App, HN ID) are populated
+      const newId = data.data?.record?.record_id
+      if (newId) {
+        const getRes  = await fetch(`${BASE_URL}/apps/${BASE_ID}/tables/${TBL_RELEASES}/records/${newId}`, { headers: hdrs })
+        const getData = await getRes.json()
+        if (getData.code === 0) {
+          return new Response(JSON.stringify(mapRelease(getData.data?.record)), { status: 201, headers })
+        }
+      }
       return new Response(JSON.stringify(mapRelease(data.data?.record || { record_id: '', fields: {} })), { status: 201, headers })
     }
 

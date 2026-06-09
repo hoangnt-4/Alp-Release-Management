@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useReleasesStore } from '../hooks/useReleasesStore'
-import { updateRelease, createRelease, getActivities } from '../lib/lark'
+import { updateRelease, createRelease, deleteRelease, getActivities } from '../lib/lark'
 import { diffAndRecord } from '../lib/activityHistory'
 import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
@@ -22,7 +22,7 @@ function sortRows(rows, key, dir) {
 }
 
 export default function History() {
-  const { releases, apps, loading, refresh, watchlist, toggleWatchlist } = useReleasesStore()
+  const { releases, apps, appLinkMap, loading, refresh, addReleaseHint, addOptimisticRelease, watchlist, toggleWatchlist } = useReleasesStore()
 
   const [filter, setFilter] = useState({ search: '', status: '', platform: '', rollout: '', dateFrom: '', dateTo: '', requestUpdate: false })
   const [sort, setSort]     = useState({ key: 'releaseDate', dir: 'desc' })
@@ -80,9 +80,18 @@ export default function History() {
     finally { setEditSaving(false) }
   }
 
+  const handleDelete = async () => {
+    if (!editModal) return
+    if (!window.confirm(`Xoá release "${editModal.version || ''}" của ${editModal.appName || editModal.app || ''}?`)) return
+    setEditSaving(true)
+    try { await deleteRelease(editModal.id); setEditModal(null); refresh() }
+    finally { setEditSaving(false) }
+  }
+
   const handleSelectApp = (app) => {
     setSelectedApp(app)
-    setAddForm(f => ({ ...f, app: app?.id || '' }))
+    const linkId = app ? (appLinkMap[(app.alpId || '').toLowerCase()] || '') : ''
+    setAddForm(f => ({ ...f, app: app?.id || '', hnId: app?.hnId || '', alpId: app?.alpId || '', appLinkId: linkId }))
   }
 
   // Latest version for a given app (by hnId or alpId)
@@ -101,7 +110,20 @@ export default function History() {
   const handleAdd = async () => {
     if (!addForm.app || !addForm.releaseDate) return
     setAddSaving(true)
-    try { await createRelease(addForm); setAddModal(false); setAddForm(EMPTY_FORM); setSelectedApp(null); refresh() }
+    try {
+      const created = await createRelease(addForm)
+      if (created?.id && selectedApp) {
+        addReleaseHint(created.id, selectedApp)
+        addOptimisticRelease({
+          ...created,
+          appName:  selectedApp.alpId || selectedApp.hnId || '',
+          hnId:     selectedApp.hnId  || '',
+          platform: selectedApp.platform || '',
+          _appId:   selectedApp.id,
+        })
+      }
+      setAddModal(false); setAddForm(EMPTY_FORM); setSelectedApp(null); refresh()
+    }
     finally { setAddSaving(false) }
   }
 
@@ -109,7 +131,7 @@ export default function History() {
 
   const filtered = useMemo(() => {
     const q = filter.search.toLowerCase()
-    return releases.filter(r => {
+return releases.filter(r => {
       if (filter.status   && r.status !== filter.status) return false
       if (filter.platform && !r.platform?.toLowerCase().includes(filter.platform.toLowerCase())) return false
       if (filter.rollout  && r.rollout !== filter.rollout) return false
@@ -383,14 +405,19 @@ export default function History() {
                 <textarea className="input resize-none" rows={3} value={editForm.releaseNote} onChange={e => setEditForm(f => ({ ...f, releaseNote: e.target.value }))} />
               </div>
             </div>
-            <div className="flex justify-end gap-2 px-5 py-4 border-t border-surface-200">
-              <button className="btn-secondary" onClick={() => setEditModal(null)}>Huỷ</button>
-              <button
-                onClick={handleEdit}
-                disabled={editSaving}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-                style={{ background: '#0d9488' }}
-              >{editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</button>
+            <div className="flex items-center justify-between px-5 py-4 border-t border-surface-200">
+              <button onClick={handleDelete} disabled={editSaving} className="px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50" style={{ color: '#ef4444', border: '1px solid #fecaca' }}>
+                🗑 Xoá
+              </button>
+              <div className="flex gap-2">
+                <button className="btn-secondary" onClick={() => setEditModal(null)}>Huỷ</button>
+                <button
+                  onClick={handleEdit}
+                  disabled={editSaving}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                  style={{ background: '#0d9488' }}
+                >{editSaving ? 'Đang lưu...' : 'Lưu thay đổi'}</button>
+              </div>
             </div>
           </div>
         </div>

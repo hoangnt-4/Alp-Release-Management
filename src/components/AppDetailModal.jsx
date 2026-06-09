@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getTimeline, getActivities, updateActivity, updateRelease } from '../lib/lark'
+import { getTimeline, getActivities, updateActivity, updateRelease, deleteRelease } from '../lib/lark'
 import { addEvent } from '../lib/activityHistory'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { PlatformBadge, RolloutBadge } from '../pages/Dashboard'
@@ -332,6 +332,14 @@ export default function AppDetailModal({ app, onClose }) {
     setEditModal(r)
   }
 
+  const handleDelete = async () => {
+    if (!editModal) return
+    if (!window.confirm(`Xoá release "${editModal.version || ''}" của ${editModal.appName || editModal.app || ''}?`)) return
+    setEditSaving(true)
+    try { await deleteRelease(editModal.id); setEditModal(null); refresh() }
+    finally { setEditSaving(false) }
+  }
+
   const handleEdit = async () => {
     if (!editModal) return
     setEditSaving(true)
@@ -585,11 +593,16 @@ export default function AppDetailModal({ app, onClose }) {
               <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Release Note</label>
               <textarea className="input w-full text-sm resize-none" rows={3} value={editForm.releaseNote} onChange={e => setEditForm(f => ({ ...f, releaseNote: e.target.value }))} />
             </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setEditModal(null)} className="px-4 py-2 rounded-xl border border-surface-200 text-sm">Cancel</button>
-              <button onClick={handleEdit} disabled={editSaving}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50"
-                style={{ background: '#0d9488' }}>{editSaving ? 'Saving...' : 'Save changes'}</button>
+            <div className="flex items-center justify-between pt-1">
+              <button onClick={handleDelete} disabled={editSaving} className="px-3 py-2 rounded-xl text-sm font-medium disabled:opacity-50" style={{ color: '#ef4444', border: '1px solid #fecaca' }}>
+                🗑 Xoá
+              </button>
+              <div className="flex gap-2">
+                <button onClick={() => setEditModal(null)} className="px-4 py-2 rounded-xl border border-surface-200 text-sm">Cancel</button>
+                <button onClick={handleEdit} disabled={editSaving}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-50"
+                  style={{ background: '#0d9488' }}>{editSaving ? 'Saving...' : 'Save changes'}</button>
+              </div>
             </div>
           </div>
         </div>
