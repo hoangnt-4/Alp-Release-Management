@@ -139,7 +139,7 @@ export function buildActivityFields(data) {
 export function buildReleaseFields(data) {
   const fields = {}
   if (data.releaseDate)          fields['Release Date']      = new Date(data.releaseDate).getTime()
-  if (data.app)                  fields['App']               = [data.app]
+  if (data.app)                  fields['App']               = { record_ids: [data.app] }
   if (data.hnId)                 fields['HN ID']             = data.hnId
   if (data.version)              fields['Version']           = data.version
   if (data.rollout)              fields['Roll-out']          = data.rollout
