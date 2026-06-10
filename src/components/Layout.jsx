@@ -43,8 +43,15 @@ export default function Layout({ children }) {
   const location  = useLocation()
   const navigate  = useNavigate()
 
-  const isApps = location.pathname === '/apps'
+  const isApps  = location.pathname === '/apps'
+  const isStats = location.pathname === '/stats'
   const currentStatus = new URLSearchParams(location.search).get('status') || ''
+  const currentView   = new URLSearchParams(location.search).get('view')   || 'stats'
+
+  const STATS_TABS = [
+    { value: 'stats', label: 'Overview' },
+    { value: 'gantt', label: 'Timeline' },
+  ]
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -99,6 +106,29 @@ export default function Layout({ children }) {
                     </>
                   )}
                 </NavLink>
+
+                {/* Stats sub-tabs */}
+                {to === '/stats' && isStats && !collapsed && (
+                  <div className="ml-4 space-y-0.5 pb-1">
+                    {STATS_TABS.map(s => {
+                      const isActive = currentView === s.value
+                      return (
+                        <button
+                          key={s.value}
+                          onClick={() => navigate(`/stats?view=${s.value}`)}
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors"
+                          style={isActive
+                            ? { background: 'rgba(13,148,136,0.15)', color: '#2dd4bf' }
+                            : { color: 'rgba(255,255,255,0.4)' }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ background: isActive ? '#2dd4bf' : 'rgba(255,255,255,0.3)' }} />
+                          <span className="flex-1 text-left">{s.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
 
                 {/* Apps sub-tabs */}
                 {isAppsItem && isApps && !collapsed && (

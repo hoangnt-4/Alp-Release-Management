@@ -33,6 +33,10 @@ export async function getApps() {
   return request('/apps')
 }
 
+export async function getMonet() {
+  return request('/monet')
+}
+
 export async function getTimeline() {
   return request('/timeline')
 }

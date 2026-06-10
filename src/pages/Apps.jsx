@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { useLocation } from 'react-router-dom'
-import { PlatformBadge } from './Dashboard'
 import AppDetailModal from '../components/AppDetailModal'
+import { FEATURES } from '../lib/features'
 
 const STATUS_STYLES = {
   RUNNING:     { bg: '#dcfce7', color: '#166534' },
@@ -68,7 +68,7 @@ function MiniTimeline({ tl }) {
 }
 
 export default function Apps() {
-  const { apps, timelines, activities, loading } = useReleasesStore()
+  const { apps, timelines, activities, monet, loading } = useReleasesStore()
   const location = useLocation()
   const urlStatus = new URLSearchParams(location.search).get('status') || ''
 
@@ -84,7 +84,7 @@ export default function Apps() {
 
   // Sync filterStatus when URL changes (sidebar sub-tab click)
   useEffect(() => { setFilterStatus(urlStatus) }, [urlStatus])
-  const [sort, setSort] = useState({ key: 'alpId', dir: 'asc' })
+  const [sort, setSort] = useState({ key: 'hnId', dir: 'asc' })
   const toggleSort = useCallback((key) => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' })), [])
   const [detailApp, setDetailApp] = useState(null)
 
@@ -245,7 +245,6 @@ export default function Apps() {
                   { label: 'App',        key: 'alpId' },
                   { label: 'HN ID',      key: 'hnId' },
                   { label: 'Local Noti', key: null },
-                  { label: 'Platform',   key: 'platform' },
                   { label: 'Status',     key: 'status' },
                   { label: 'Timeline',   key: 'timeline' },
                   { label: 'Store',      key: null },
@@ -266,9 +265,9 @@ export default function Apps() {
             </thead>
             <tbody className="divide-y divide-surface-100">
               {loading ? (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm" style={{ color: '#94a3b8' }}>Đang tải...</td></tr>
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm" style={{ color: '#94a3b8' }}>Đang tải...</td></tr>
               ) : sorted.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-sm" style={{ color: '#94a3b8' }}>Không có kết quả</td></tr>
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-sm" style={{ color: '#94a3b8' }}>Không có kết quả</td></tr>
               ) : sorted.map((a, i) => {
                 const tl = getTl(a)
                 const platform = typeof a.platform === 'object' ? (a.platform?.text || '') : (a.platform || '')
@@ -286,12 +285,18 @@ export default function Apps() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                          style={{ background: '#0d9488' }}>
-                          {(a.alpId || '?')[0].toUpperCase()}
+                          style={{ background: platform.toLowerCase().includes('android') ? '#34a853' : '#007aff' }}>
+                          {platform.toLowerCase().includes('android') ? 'A' : 'i'}
                         </div>
                         <span className="font-medium text-xs" style={{ color: '#1e293b' }}>
                           {String(a.alpId || '') || '—'}
                         </span>
+                        {FEATURES.monet && (() => { const m = monet[a.alpId?.toLowerCase()] || monet[a.hnId?.toLowerCase()]; return m && Object.keys(m.months || {}).length > 0 })() && (
+                          <span className="group relative inline-flex items-center">
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#3b82f6' }} />
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 hidden group-hover:block text-xs whitespace-nowrap pointer-events-none" style={{ color: '#64748b' }}>Monet</span>
+                          </span>
+                        )}
                         {act?.requestUpdate && (
                           <span className="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
                             style={{ background: '#fef3c7', color: '#d97706' }}>⚡ Request</span>
@@ -315,9 +320,6 @@ export default function Apps() {
                           ? <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: s.bg, color: s.color }}>{s.label}</span>
                           : <span style={{ color: '#cbd5e1' }}>—</span>
                       })()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <PlatformBadge platform={String(platform)} />
                     </td>
                     <td className="px-4 py-3">
                       <AppStatusBadge status={a.status} />

@@ -5,9 +5,10 @@ import { useReleasesStore } from '../hooks/useReleasesStore'
 import { PlatformBadge, RolloutBadge } from '../pages/Dashboard'
 import StatusBadge from './StatusBadge'
 import { AppStatusBadge } from '../pages/Apps'
+import { FEATURES } from '../lib/features'
 
 const STATUS_OPTS   = ['', 'Checked', 'Updated', 'Pending Review', 'Checking', 'New']
-const ROLLOUT_OPTS  = ['--', '20%', '30%', '40%', '50%', '99%', '100%']
+const ROLLOUT_OPTS  = ['--', '5%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '99%', '100%']
 
 // ─── Timeline ────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,8 @@ function ReleaseEventSection({ label, releases, dot, prefix }) {
 
 const LINK_FIELDS = ['linkRequest', 'linkRequest2', 'linkRequest3', 'linkRequest4']
 
+const IS_URL = v => /^https?:\/\//i.test(v)
+
 function LinkRow({ index, value, saving, onSave }) {
   const [input, setInput]     = useState(value || '')
   const [editing, setEditing] = useState(false)
@@ -152,26 +155,31 @@ function LinkRow({ index, value, saving, onSave }) {
       {index > 0 && <p className="text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>#{index + 1}</p>}
       {editing ? (
         <div className="flex gap-2">
-          <input
-            className="input text-xs flex-1"
-            placeholder="https://..."
+          <textarea
+            className="input text-xs flex-1 resize-none"
+            placeholder="Nhập link hoặc nội dung..."
+            rows={2}
             value={input}
             onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSave()}
+            onKeyDown={e => e.key === 'Enter' && e.metaKey && handleSave()}
             autoFocus
           />
-          <button onClick={handleSave} disabled={saving}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50"
-            style={{ background: '#0d9488' }}>{saving ? '...' : 'Lưu'}</button>
-          <button onClick={() => { setEditing(false); setInput(value || '') }}
-            className="px-3 py-1.5 rounded-lg text-xs border border-surface-200">Huỷ</button>
+          <div className="flex flex-col gap-1">
+            <button onClick={handleSave} disabled={saving}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50"
+              style={{ background: '#0d9488' }}>{saving ? '...' : 'Lưu'}</button>
+            <button onClick={() => { setEditing(false); setInput(value || '') }}
+              className="px-3 py-1.5 rounded-lg text-xs border border-surface-200">Huỷ</button>
+          </div>
         </div>
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-2">
           {value
-            ? <a href={value} target="_blank" rel="noopener noreferrer"
-                className="text-xs truncate flex-1 hover:underline" style={{ color: '#0d9488' }}>{value}</a>
-            : <span className="text-xs flex-1" style={{ color: '#cbd5e1' }}>Chưa có link</span>
+            ? IS_URL(value)
+              ? <a href={value} target="_blank" rel="noopener noreferrer"
+                  className="text-xs truncate flex-1 hover:underline" style={{ color: '#0d9488' }}>{value}</a>
+              : <p className="text-xs flex-1 break-words whitespace-pre-wrap" style={{ color: '#334155' }}>{value}</p>
+            : <span className="text-xs flex-1" style={{ color: '#cbd5e1' }}>Chưa có nội dung</span>
           }
           <button onClick={() => setEditing(true)}
             className="text-xs px-2 py-1 rounded border border-surface-200 hover:bg-surface-50 shrink-0"
@@ -187,7 +195,7 @@ function LinkRequestsBlock({ activity, saving, onSaveLink, initCount }) {
   return (
     <div className="rounded-xl border border-surface-100 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-100">
-        <p className="text-xs font-medium" style={{ color: '#64748b' }}>Link Request</p>
+        <p className="text-xs font-medium" style={{ color: '#64748b' }}>Nội dung request</p>
         {count < LINK_FIELDS.length && (
           <button
             onClick={() => setCount(c => c + 1)}
@@ -239,7 +247,9 @@ function ActivitiesTab({ app, initialActivity, timeline }) {
     setSaving(true)
     try {
       const newVal = !activity.requestUpdate
-      await updateActivity(activity.id, { requestUpdate: newVal })
+      const today  = new Date().toISOString().slice(0, 10)
+      const lastedRequest = newVal ? today : null
+      await updateActivity(activity.id, { requestUpdate: newVal, lastedRequest })
       addEvent({
         appId:    app.alpId || app.hnId,
         appName:  app.alpId || app.hnId,
@@ -247,7 +257,7 @@ function ActivitiesTab({ app, initialActivity, timeline }) {
         oldValue: activity.requestUpdate,
         newValue: newVal,
       })
-      setActivity(a => ({ ...a, requestUpdate: newVal }))
+      setActivity(a => ({ ...a, requestUpdate: newVal, lastedRequest }))
     } finally { setSaving(false) }
   }
 
@@ -284,9 +294,17 @@ function ActivitiesTab({ app, initialActivity, timeline }) {
       <div className="rounded-xl border border-surface-100 px-4 py-3 flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium" style={{ color: '#1e293b' }}>Request Update</p>
-          {activity.requestUpdate && (
-            <p className="text-xs mt-0.5 font-medium" style={{ color: '#f59e0b' }}>⚡ Đang có request update</p>
-          )}
+          {activity.requestUpdate && (() => {
+            const days = activity.lastedRequest
+              ? Math.round((Date.now() - new Date(activity.lastedRequest)) / 86400000)
+              : null
+            return (
+              <p className="text-xs mt-0.5 font-medium" style={{ color: '#f59e0b' }}>
+                ⚡ Đang có request update
+                {days !== null && <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold" style={{ background: '#fef3c7', color: '#b45309' }}>{days} ngày</span>}
+              </p>
+            )
+          })()}
         </div>
         <button
           onClick={handleToggleRequest}
@@ -308,16 +326,238 @@ function ActivitiesTab({ app, initialActivity, timeline }) {
   )
 }
 
+// ─── Monet Tab ────────────────────────────────────────────────────────────────
+
+function MonetTab({ data }) {
+  const [hovered, setHovered] = React.useState(null) // { i, x, y, cr, install, label }
+
+  if (!data || !data.months || Object.keys(data.months).length === 0) {
+    return <p className="text-xs text-center py-10" style={{ color: '#94a3b8' }}>Chưa có dữ liệu Monet</p>
+  }
+
+  const sorted = Object.entries(data.months)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([ym, vals]) => ({
+      ym,
+      label: `${ym.slice(4, 6)}/${ym.slice(0, 4)}`,
+      install: vals.install ?? null,
+      cr: vals.cr != null ? vals.cr * 100 : null,
+    }))
+
+  // Simple SVG line chart
+  const W = 480, H = 140, PAD = { t: 16, r: 20, b: 36, l: 52 }
+  const innerW = W - PAD.l - PAD.r
+  const innerH = H - PAD.t - PAD.b
+  const n = sorted.length
+  const BAR_W = Math.min(32, Math.max(6, innerW / Math.max(n, 1) * 0.4))
+
+  const crVals = sorted.map(d => d.cr).filter(v => v !== null)
+  const crMax = crVals.length ? Math.ceil(Math.max(...crVals) * 1.25) : 100
+  const crMin = 0
+
+  // Distribute evenly across chart width regardless of date gaps
+  const scaleX = i => PAD.l + (n < 2 ? innerW / 2 : (i / (n - 1)) * innerW)
+  const scaleY = v => PAD.t + innerH - ((v - crMin) / (crMax - crMin || 1)) * innerH
+
+  const crPoints = sorted
+    .map((d, i) => d.cr !== null ? `${scaleX(i)},${scaleY(d.cr)}` : null)
+    .filter(Boolean)
+  const crPath = crPoints.length > 1 ? `M${crPoints.join('L')}` : null
+
+  // Install max for secondary axis
+  const instVals = sorted.map(d => d.install).filter(v => v !== null)
+  const instMax = instVals.length ? Math.max(...instVals) * 1.2 : 1
+
+  const scaleYInst = v => PAD.t + innerH - (v / (instMax || 1)) * innerH
+
+  const instPoints = sorted
+    .map((d, i) => d.install !== null ? `${scaleX(i)},${scaleYInst(d.install)}` : null)
+    .filter(Boolean)
+  const instPath = instPoints.length > 1 ? `M${instPoints.join('L')}` : null
+
+  return (
+    <div className="p-5 space-y-4">
+      {/* Priority */}
+      {data.priority && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs" style={{ color: '#94a3b8' }}>Priority</span>
+          <PriorityBadge value={data.priority} />
+        </div>
+      )}
+
+      {/* Chart */}
+      <div className="rounded-xl border border-surface-100 overflow-hidden p-4">
+        <p className="text-xs font-semibold mb-3" style={{ color: '#64748b' }}>Install &amp; CR theo tháng</p>
+        <div style={{ overflowX: 'auto' }}>
+          <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ minWidth: 280, maxWidth: W }}>
+            {/* Grid lines */}
+            {[0, 0.25, 0.5, 0.75, 1].map(t => {
+              const y = PAD.t + innerH * (1 - t)
+              return (
+                <line key={t} x1={PAD.l} y1={y} x2={W - PAD.r} y2={y}
+                  stroke="#f1f5f9" strokeWidth="1" />
+              )
+            })}
+
+            {/* Install bars */}
+            {sorted.map((d, i) => {
+              if (d.install === null) return null
+              const bw = BAR_W
+              const x = scaleX(i) - bw / 2
+              const bh = (d.install / (instMax || 1)) * innerH
+              const y = PAD.t + innerH - bh
+              return (
+                <rect key={i} x={x} y={y} width={bw} height={bh}
+                  fill="#bfdbfe" rx="2" opacity="0.7" />
+              )
+            })}
+
+            {/* CR line */}
+            {crPath && (
+              <path d={crPath} fill="none" stroke="#0d9488" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            )}
+            {/* Inst line */}
+            {instPath && (
+              <path d={instPath} fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeDasharray="4,2" strokeLinejoin="round" strokeLinecap="round" opacity="0.5" />
+            )}
+
+            {/* CR dots */}
+            {sorted.map((d, i) => {
+              if (d.cr === null) return null
+              const cx = scaleX(i), cy = scaleY(d.cr)
+              const isHov = hovered?.i === i
+              return (
+                <g key={i}
+                  onMouseEnter={() => setHovered({ i, x: cx, y: cy, cr: d.cr, install: d.install, label: d.label })}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{ cursor: 'pointer' }}>
+                  {/* hit area */}
+                  <circle cx={cx} cy={cy} r="12" fill="transparent" />
+                  {/* pulse ring when hovered */}
+                  {isHov && <circle cx={cx} cy={cy} r="8" fill="#0d9488" opacity="0.15" />}
+                  <circle cx={cx} cy={cy} r={isHov ? 5 : 3.5}
+                    fill="#0d9488" stroke="white" strokeWidth="1.5"
+                    style={{ transition: 'r 0.15s ease' }} />
+                </g>
+              )
+            })}
+
+            {/* Tooltip */}
+            {hovered && (() => {
+              const TW = 110, TH = hovered.install !== null ? 54 : 42
+              // horizontal: clamp within PAD.l … W-PAD.r
+              const tx = Math.min(Math.max(hovered.x - TW / 2, PAD.l), W - PAD.r - TW)
+              // vertical: show above if room, else below
+              const aboveY = hovered.y - TH - 12
+              const ty = aboveY >= PAD.t ? aboveY : hovered.y + 14
+              return (
+                <g style={{ pointerEvents: 'none' }}>
+                  <rect x={tx} y={ty} width={TW} height={TH} rx="7"
+                    fill="#1e293b" opacity="0.93" />
+                  <text x={tx + TW / 2} y={ty + 13} textAnchor="middle" fontSize="9" fill="#64748b">{hovered.label}</text>
+                  <text x={tx + TW / 2} y={ty + 30} textAnchor="middle" fontSize="14" fontWeight="700" fill="#34d399">
+                    {parseFloat(hovered.cr.toFixed(2))}%
+                  </text>
+                  {hovered.install !== null && (
+                    <text x={tx + TW / 2} y={ty + 46} textAnchor="middle" fontSize="9" fill="#93c5fd">
+                      {hovered.install.toLocaleString()} installs
+                    </text>
+                  )}
+                </g>
+              )
+            })()}
+
+            {/* X labels */}
+            {sorted.map((d, i) => (
+              <text key={i} x={scaleX(i)} y={H - 6}
+                textAnchor="middle" fontSize="9" fill="#94a3b8">{d.label}</text>
+            ))}
+
+            {/* Y axis CR labels */}
+            {[0, 0.5, 1].map(t => {
+              const y = PAD.t + innerH * (1 - t)
+              const val = (crMin + t * (crMax - crMin)).toFixed(1)
+              return (
+                <text key={t} x={PAD.l - 4} y={y + 3.5}
+                  textAnchor="end" fontSize="9" fill="#94a3b8">{val}%</text>
+              )
+            })}
+          </svg>
+        </div>
+
+        {/* Legend */}
+        <div className="flex gap-4 mt-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-sm" style={{ background: '#bfdbfe' }} />
+            <span className="text-xs" style={{ color: '#64748b' }}>Install</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-6 h-0.5 rounded" style={{ background: '#0d9488' }} />
+            <span className="text-xs" style={{ color: '#64748b' }}>CR (%)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl border border-surface-100 overflow-hidden">
+        <table className="w-full text-xs">
+          <thead>
+            <tr style={{ background: '#f8fafc' }}>
+              <th className="text-left px-4 py-2.5 font-semibold" style={{ color: '#64748b' }}>Tháng</th>
+              <th className="text-right px-4 py-2.5 font-semibold" style={{ color: '#64748b' }}>Install</th>
+              <th className="text-right px-4 py-2.5 font-semibold" style={{ color: '#64748b' }}>CR (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...sorted].reverse().map((d, i) => (
+              <tr key={d.ym} className={i % 2 === 0 ? '' : ''} style={{ borderTop: '1px solid #f1f5f9' }}>
+                <td className="px-4 py-2.5 font-mono font-medium" style={{ color: '#1e293b' }}>{d.label}</td>
+                <td className="px-4 py-2.5 text-right font-mono" style={{ color: '#3b82f6' }}>
+                  {d.install !== null ? d.install.toLocaleString() : <span style={{ color: '#cbd5e1' }}>—</span>}
+                </td>
+                <td className="px-4 py-2.5 text-right font-mono" style={{ color: '#0d9488' }}>
+                  {d.cr !== null ? `${parseFloat(d.cr.toFixed(2))}%` : <span style={{ color: '#cbd5e1' }}>—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── Priority Badge ───────────────────────────────────────────────────────────
+
+const PRIORITY_STYLES = {
+  'LOW':    { bg: '#f1f5f9', color: '#64748b' },
+  'NORMAL': { bg: '#fff7ed', color: '#c2410c' },
+  'HIGH':   { bg: '#fce7f3', color: '#be185d' },
+  'URGENT': { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+}
+
+function PriorityBadge({ value }) {
+  if (!value) return null
+  const key = value.toUpperCase()
+  const s = PRIORITY_STYLES[key] || { bg: '#f1f5f9', color: '#64748b' }
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-semibold"
+      style={{ background: s.bg, color: s.color, border: s.border ? `1px solid ${s.border}` : undefined }}>
+      {value}
+    </span>
+  )
+}
+
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
 export default function AppDetailModal({ app, onClose }) {
-  const { releases, refresh, timelines, activities } = useReleasesStore()
+  const { releases, refresh, timelines, activities, monet } = useReleasesStore()
   const [tab, setTab] = useState('activities')
 
-  const tlKey = app.hnId?.toLowerCase() || app.alpId?.toLowerCase() || ''
-  const actKey = app.hnId?.toLowerCase() || app.alpId?.toLowerCase() || ''
-  const timeline    = timelines[tlKey] || null
-  const appActivity = activities[actKey] || null
+  const appKey      = app.hnId?.toLowerCase() || app.alpId?.toLowerCase() || ''
+  const timeline    = timelines[appKey] || null
+  const appActivity = activities[appKey] || null
+  const monetData   = monet[app.alpId?.toLowerCase()] || monet[appKey] || null
 
   // Edit modal
   const [editModal, setEditModal]   = useState(null)
@@ -373,9 +613,22 @@ export default function AppDetailModal({ app, onClose }) {
   const checkedCount  = appReleases.filter(r => r.status === 'Checked' || r.status === 'Updated').length
   const pendingCount  = appReleases.filter(r => !r.status).length
 
+  const hasMonetData = FEATURES.monet && monetData && Object.keys(monetData.months || {}).length > 0
+  const docLinks = [
+    { label: 'Figma',            text: app.figma,           url: app.figmaUrl },
+    { label: 'HN Bug',           text: app.hnBug,           url: app.hnBugUrl },
+    { label: 'Ads Script',       text: app.adsScript,       url: app.adsScriptUrl },
+    { label: 'iAP Script',       text: app.iapScript,       url: app.iapScriptUrl },
+    { label: 'Metadata',         text: app.metadata,        url: app.metadataUrl },
+    { label: 'Task/Bug List',    text: app.taskBugList,     url: app.taskBugListUrl },
+    { label: 'Local Noti Script',text: app.localNotiScript, url: app.localNotiScriptUrl },
+  ].filter(d => d.text || d.url)
+
   const RIGHT_TABS = [
     { key: 'activities', label: 'Activities' },
     { key: 'releases',   label: `Releases (${appReleases.length})` },
+    { key: 'documents',  label: `Documents (${docLinks.length})` },
+    ...(FEATURES.monet ? [{ key: 'monet', label: 'Monet', dot: hasMonetData }] : []),
   ]
 
   return (
@@ -407,6 +660,19 @@ export default function AppDetailModal({ app, onClose }) {
                   <a href={app.appLinkUrl} target="_blank" rel="noopener noreferrer"
                     className="text-xs hover:underline" style={{ color: '#0d9488' }}>Store ↗</a>
                 )}
+                {app.androidStatus && app.platform?.toLowerCase() !== 'ios' && (() => {
+                  const s = app.androidStatus.toLowerCase()
+                  const color = s.includes('public') ? '#16a34a'
+                    : s.includes('review') ? '#d97706'
+                    : s.includes('testing') ? '#2563eb'
+                    : '#94a3b8'
+                  return (
+                    <span className="group relative inline-flex items-center">
+                      <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 hidden group-hover:block text-xs whitespace-nowrap pointer-events-none px-1.5 py-0.5 rounded" style={{ background: '#f8fafc', color, border: `1px solid ${color}40` }}>{app.androidStatus}</span>
+                    </span>
+                  )
+                })()}
               </div>
             </div>
           </div>
@@ -457,12 +723,16 @@ export default function AppDetailModal({ app, onClose }) {
             <div className="flex border-b border-surface-100 shrink-0 px-4">
               {RIGHT_TABS.map(t => (
                 <button key={t.key} onClick={() => setTab(t.key)}
-                  className="text-xs font-medium px-4 py-3 border-b-2 transition-colors"
+                  className="text-xs font-medium px-4 py-3 border-b-2 transition-colors flex items-center gap-1.5"
                   style={{
                     borderColor: tab === t.key ? '#0d9488' : 'transparent',
                     color:       tab === t.key ? '#0d9488' : '#94a3b8',
                   }}>
                   {t.label}
+                  {t.dot && (
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ background: '#3b82f6', marginTop: '-1px' }} />
+                  )}
                 </button>
               ))}
             </div>
@@ -470,6 +740,29 @@ export default function AppDetailModal({ app, onClose }) {
             {/* Tab content */}
             <div className="flex-1 overflow-auto">
               {tab === 'activities' && <ActivitiesTab app={app} initialActivity={appActivity} timeline={timeline} />}
+
+              {tab === 'monet' && <MonetTab data={monetData} />}
+
+              {tab === 'documents' && (
+                <div className="p-5">
+                  {docLinks.length === 0 ? (
+                    <p className="text-sm text-center py-10" style={{ color: '#94a3b8' }}>Chưa có tài liệu nào</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      {docLinks.map(doc => (
+                        <a key={doc.label} href={doc.url || doc.text} target="_blank" rel="noopener noreferrer"
+                          className="flex flex-col gap-1 px-4 py-3 rounded-xl hover:shadow-sm transition-all group"
+                          style={{ background: '#f8fafc', border: '1px solid #e2e8f0', textDecoration: 'none' }}>
+                          <span className="text-xs" style={{ color: '#94a3b8' }}>{doc.label}</span>
+                          <span className="text-sm font-medium truncate group-hover:underline" style={{ color: '#0d9488' }}>
+                            {doc.text || doc.url}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {tab === 'releases' && (
                 <div className="p-4 space-y-2">

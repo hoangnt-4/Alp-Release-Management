@@ -33,6 +33,7 @@ export const TBL_RELEASES    = process.env.LARK_TABLE_RELEASES
 export const TBL_APPS        = process.env.LARK_TABLE_APPS
 export const TBL_TIMELINE    = process.env.LARK_TABLE_TIMELINE
 export const TBL_ACTIVITIES  = process.env.LARK_TABLE_ACTIVITIES
+export const TBL_MONET       = process.env.LARK_TABLE_MONET
 
 export function mapRelease(record) {
   const f = record.fields
@@ -74,13 +75,29 @@ function larkUrl(v) {
 export function mapApp(record) {
   const f = record.fields
   return {
-    id:         record.record_id,
-    alpId:      larkText(f['Alp ID']),
-    hnId:       larkText(f['HN ID']),
-    platform:   larkText(f['Platform']),
-    appLink:    larkText(f['App Link']),
-    appLinkUrl: larkUrl(f['App Link']),
-    status:     larkText(f['Status']),
+    id:                 record.record_id,
+    alpId:              larkText(f['Alp ID']),
+    hnId:               larkText(f['HN ID']),
+    platform:           larkText(f['Platform']),
+    appLink:            larkText(f['App Link']),
+    appLinkUrl:         larkUrl(f['App Link']),
+    status:             larkText(f['Status']),
+    priority:           larkText(f['Priority']),
+    androidStatus:      larkText(f['Android Status']),
+    figma:              larkText(f['Figma']),
+    figmaUrl:           larkUrl(f['Figma']),
+    hnBug:              larkText(f['HN Bug']),
+    hnBugUrl:           larkUrl(f['HN Bug']),
+    adsScript:          larkText(f['Ads Script']),
+    adsScriptUrl:       larkUrl(f['Ads Script']),
+    iapScript:          larkText(f['iAP Script']),
+    iapScriptUrl:       larkUrl(f['iAP Script']),
+    metadata:           larkText(f['Metadata']),
+    metadataUrl:        larkUrl(f['Metadata']),
+    taskBugList:        larkText(f['Task/Bug List']),
+    taskBugListUrl:     larkUrl(f['Task/Bug List']),
+    localNotiScript:    larkText(f['Local Noti Script']),
+    localNotiScriptUrl: larkUrl(f['Local Noti Script']),
   }
 }
 
@@ -116,24 +133,26 @@ export function mapActivity(record) {
     localNoti:      larkText(f['Local Noti']),
     iap:            f['iAP'] === true || f['iAP'] === 1,
     requestUpdate:  f['Request Update'] === true || f['Request Update'] === 1,
-    linkRequest:    larkUrl(f['Link Request'])   || larkText(f['Link Request']),
-    linkRequest2:   larkUrl(f['Link Request 2']) || larkText(f['Link Request 2']),
-    linkRequest3:   larkUrl(f['Link Request 3']) || larkText(f['Link Request 3']),
-    linkRequest4:   larkUrl(f['Link Request 4']) || larkText(f['Link Request 4']),
+    linkRequest:    larkText(f['Link Request']),
+    linkRequest2:   larkText(f['Link Request 2']),
+    linkRequest3:   larkText(f['Link Request 3']),
+    linkRequest4:   larkText(f['Link Request 4']),
+    lastedRequest:  larkDate(f['Request Date']),
   }
 }
 
 export function buildActivityFields(data) {
   const fields = {}
-  if (data.show          !== undefined) fields['Show']           = data.show
-  if (data.config        !== undefined) fields['Config']         = data.config
-  if (data.localNoti     !== undefined) fields['Local Noti']     = data.localNoti
-  if (data.iap           !== undefined) fields['iAP']            = !!data.iap
-  if (data.requestUpdate !== undefined) fields['Request Update'] = data.requestUpdate
-  if (data.linkRequest   !== undefined) fields['Link Request']   = data.linkRequest ? { link: data.linkRequest, text: data.linkRequest } : null
-  if (data.linkRequest2  !== undefined) fields['Link Request 2'] = data.linkRequest2 ? { link: data.linkRequest2, text: data.linkRequest2 } : null
-  if (data.linkRequest3  !== undefined) fields['Link Request 3'] = data.linkRequest3 ? { link: data.linkRequest3, text: data.linkRequest3 } : null
-  if (data.linkRequest4  !== undefined) fields['Link Request 4'] = data.linkRequest4 ? { link: data.linkRequest4, text: data.linkRequest4 } : null
+  if (data.show           !== undefined) fields['Show']            = data.show
+  if (data.config         !== undefined) fields['Config']          = data.config
+  if (data.localNoti      !== undefined) fields['Local Noti']      = data.localNoti
+  if (data.iap            !== undefined) fields['iAP']             = !!data.iap
+  if (data.requestUpdate  !== undefined) fields['Request Update']  = data.requestUpdate
+  if (data.lastedRequest  !== undefined) fields['Request Date']    = data.lastedRequest ? new Date(data.lastedRequest).getTime() : null
+  if (data.linkRequest    !== undefined) fields['Link Request']    = data.linkRequest   || null
+  if (data.linkRequest2   !== undefined) fields['Link Request 2']  = data.linkRequest2  || null
+  if (data.linkRequest3   !== undefined) fields['Link Request 3']  = data.linkRequest3  || null
+  if (data.linkRequest4   !== undefined) fields['Link Request 4']  = data.linkRequest4  || null
   return fields
 }
 
@@ -152,4 +171,26 @@ export function buildReleaseFields(data) {
   if (data.lastCheckedDate)      fields['Last Checked Date'] = new Date(data.lastCheckedDate).getTime()
   if (data.reviewNotes)          fields['Review Notes']      = data.reviewNotes
   return fields
+}
+
+// Monet: dynamically extract all YYYYMM Install / YYYYMM CR columns
+export function mapMonet(record) {
+  const f = record.fields
+  const months = {}
+  const re = /^(\d{6})\s+(Install|CR)$/i
+  for (const [key, val] of Object.entries(f)) {
+    const m = key.match(re)
+    if (!m) continue
+    const ym = m[1]  // e.g. "202604"
+    const type = m[2].toLowerCase()  // "install" or "cr"
+    if (!months[ym]) months[ym] = {}
+    months[ym][type] = typeof val === 'number' ? val : parseFloat(val) || null
+  }
+  return {
+    id:       record.record_id,
+    alpId:    larkText(f['Alp ID']),
+    hnId:     larkText(f['HN ID']),
+    priority: larkText(f['Priority']),
+    months,
+  }
 }

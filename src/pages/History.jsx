@@ -9,7 +9,7 @@ import { PlatformBadge, RolloutBadge } from './Dashboard'
 import clsx from 'clsx'
 
 const STATUS_OPTS = ['', 'Checked', 'Updated', 'Pending Review', 'Checking', 'New']
-const ROLLOUT_OPTS = ['', '--', '20%', '30%', '40%', '50%', '99%', '100%']
+const ROLLOUT_OPTS = ['', '--', '5%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '99%', '100%']
 const EMPTY_FORM  = { app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' }
 
 function sortRows(rows, key, dir) {
@@ -377,7 +377,7 @@ return releases.filter(r => {
                 <div>
                   <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Roll-out</label>
                   <select className="input" value={editForm.rollout} onChange={e => setEditForm(f => ({ ...f, rollout: e.target.value }))}>
-                    {['--','20%','30%','40%','50%','99%','100%'].map(o => <option key={o}>{o}</option>)}
+                    {ROLLOUT_OPTS.filter(Boolean).map(o => <option key={o}>{o}</option>)}
                   </select>
                 </div>
               </div>
@@ -452,7 +452,7 @@ return releases.filter(r => {
                 <div>
                   <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Roll-out</label>
                   <select className="input" value={addForm.rollout} onChange={e => setAddForm(f => ({ ...f, rollout: e.target.value }))}>
-                    {['--','20%','30%','40%','50%','99%','100%'].map(o => <option key={o}>{o}</option>)}
+                    {ROLLOUT_OPTS.filter(Boolean).map(o => <option key={o}>{o}</option>)}
                   </select>
                 </div>
               </div>

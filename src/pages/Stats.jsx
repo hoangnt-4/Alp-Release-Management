@@ -1,5 +1,111 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useReleasesStore } from '../hooks/useReleasesStore'
+import { useLocation } from 'react-router-dom'
+
+// ─── Gantt Chart ──────────────────────────────────────────────────────────────
+
+const MILESTONE_OPTS = [
+  { key: 'figmaStart',  label: 'Figma Start' },
+  { key: 'figmaEnd',    label: 'Figma End' },
+  { key: 'devStart',    label: 'Dev Start' },
+  { key: 'testStart',   label: 'Test Start' },
+  { key: 'liveFullAds', label: 'Live full ads' },
+  { key: 'liveIap',     label: 'Live iAP' },
+]
+
+const BAR_COLOR = '#4f72f5'
+
+function diffDays(a, b) {
+  return Math.round((new Date(b) - new Date(a)) / 86400000)
+}
+
+function GanttChart({ timelines, apps }) {
+  const [startKey, setStartKey] = useState('testStart')
+  const [endKey,   setEndKey]   = useState('liveFullAds')
+
+  // Build rows with data (both milestones present), and no-data rows
+  const { rows, noDataRows } = useMemo(() => {
+    const withData = [], noData = []
+    apps.forEach(app => {
+      const key = app.hnId?.toLowerCase() || app.alpId?.toLowerCase() || ''
+      const tl  = timelines[key] || null
+      const s   = tl?.[startKey]
+      const e   = tl?.[endKey]
+      const label = app.alpId || app.hnId || '—'
+      if (!s || !e || e <= s) { noData.push({ label }); return }
+      withData.push({ label, start: s, end: e, days: diffDays(s, e) })
+    })
+    withData.sort((a, b) => b.days - a.days) // longest first
+    return { rows: withData, noDataRows: noData }
+  }, [timelines, apps, startKey, endKey])
+
+  const maxDays = useMemo(() => Math.max(...rows.map(r => r.days), 1), [rows])
+
+  return (
+    <div className="card p-5 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <p className="text-sm font-semibold">Gantt — Timeline apps</p>
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <span style={{ color: '#64748b' }}>Start date</span>
+            <select className="input text-xs py-1" value={startKey} onChange={e => setStartKey(e.target.value)}>
+              {MILESTONE_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span style={{ color: '#64748b' }}>End date</span>
+            <select className="input text-xs py-1" value={endKey} onChange={e => setEndKey(e.target.value)}>
+              {MILESTONE_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-sm text-center py-8" style={{ color: '#94a3b8' }}>Không có app nào có đủ 2 mốc này</p>
+      ) : (
+        <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
+          <div className="space-y-1" style={{ minWidth: 480 }}>
+            {/* Apps with data */}
+            {rows.map((r, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <div className="shrink-0 text-right truncate" style={{ width: 140, color: '#475569' }}>{r.label}</div>
+                <div className="relative flex-1 h-6 rounded" style={{ background: '#f1f5f9' }}>
+                  <div
+                    className="absolute top-0.5 bottom-0.5 left-0 rounded flex items-center px-2 gap-2"
+                    style={{ width: `${(r.days / maxDays) * 100}%`, background: BAR_COLOR, minWidth: 28 }}
+                  >
+                    <span className="text-white text-xs font-semibold shrink-0">{r.days} days</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Divider */}
+            {noDataRows.length > 0 && (
+              <div className="flex items-center gap-2 pt-2 pb-1">
+                <div className="shrink-0" style={{ width: 140 }} />
+                <div className="flex-1 border-t border-dashed" style={{ borderColor: '#e2e8f0' }} />
+              </div>
+            )}
+
+            {/* Apps without data */}
+            {noDataRows.map((r, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs opacity-40">
+                <div className="shrink-0 text-right truncate" style={{ width: 140, color: '#94a3b8' }}>{r.label}</div>
+                <div className="flex-1 h-6 rounded" style={{ background: '#f1f5f9' }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="text-xs" style={{ color: '#94a3b8' }}>
+        {rows.length} app có data · {noDataRows.length} chưa có · {MILESTONE_OPTS.find(o => o.key === startKey)?.label} → {MILESTONE_OPTS.find(o => o.key === endKey)?.label}
+      </p>
+    </div>
+  )
+}
 
 function BarChart({ data, color = '#0d9488', height = 120 }) {
   if (!data.length) return null
@@ -111,7 +217,9 @@ function HBarChart({ data, color = '#0d9488', max: maxProp }) {
 }
 
 export default function Stats() {
-  const { releases, loading } = useReleasesStore()
+  const { releases, apps, timelines, loading } = useReleasesStore()
+  const location = useLocation()
+  const view = new URLSearchParams(location.search).get('view') || 'stats'
 
   const byMonth = useMemo(() => {
     const map = {}
@@ -163,36 +271,35 @@ export default function Stats() {
 
   if (loading) return <div className="p-6 text-sm" style={{ color: '#94a3b8' }}>Đang tải...</div>
 
+  if (view === 'gantt') {
+    return (
+      <div className="p-6">
+        <GanttChart timelines={timelines} apps={apps} />
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 space-y-5">
       <h1 className="text-xl font-semibold">Thống kê</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Releases by month */}
         <div className="card p-5">
           <p className="text-sm font-semibold mb-4">Phát hành theo tháng (12 tháng gần nhất)</p>
           {byMonth.length ? <BarChart data={byMonth} height={150} /> : <p className="text-sm py-8 text-center" style={{ color: '#94a3b8' }}>Không có dữ liệu</p>}
         </div>
-
-        {/* Status distribution */}
         <div className="card p-5">
           <p className="text-sm font-semibold mb-4">Phân bổ theo status</p>
           <DonutChart slices={byStatus} size={130} />
         </div>
-
-        {/* iOS vs Android */}
         <div className="card p-5">
           <p className="text-sm font-semibold mb-4">Nền tảng (iOS vs Android)</p>
           <PieChart slices={byPlatform} />
         </div>
-
-        {/* Top apps */}
         <div className="card p-5">
           <p className="text-sm font-semibold mb-4">Top 10 app nhiều bản phát hành nhất</p>
           {topApps.length ? <HBarChart data={topApps} /> : <p className="text-sm py-8 text-center" style={{ color: '#94a3b8' }}>Không có dữ liệu</p>}
         </div>
-
-        {/* Top request apps */}
         <div className="card p-5">
           <p className="text-sm font-semibold mb-4">Top 10 app có Request Update nhiều nhất</p>
           {topRequestApps.length

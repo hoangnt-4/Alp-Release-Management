@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { getReleases, getApps, getTimeline, getActivities } from '../lib/lark'
+import { getReleases, getApps, getTimeline, getActivities, getMonet } from '../lib/lark'
 import { diffAndRecord } from '../lib/activityHistory'
 import { isAfter, subDays, parseISO } from 'date-fns'
 
@@ -15,6 +15,7 @@ export function ReleasesProvider({ children }) {
   const [appLinkMap, setAppLinkMap] = useState({})
   const [timelines, setTimelines]   = useState({})   // map: hnId/alpId → timeline record
   const [activities, setActivities] = useState({})   // map: hnId/alpId → activity record
+  const [monet, setMonet]           = useState({})   // map: hnId/alpId → monet record
   const [loading, setLoading]       = useState(true)
   const [watchlist, setWatchlist]   = useState(loadWL)
 
@@ -39,8 +40,9 @@ export function ReleasesProvider({ children }) {
       getApps(),
       getTimeline(),
       getActivities(),
+      getMonet().catch(() => ({ records: [] })),
     ])
-      .then(([r, a, tl, act]) => {
+      .then(([r, a, tl, act, mn]) => {
         const appList = a.records || []
         const byAlpId = Object.fromEntries(appList.map(app => [app.alpId?.toLowerCase(), app]))
         const byHnId  = Object.fromEntries(appList.filter(app => app.hnId).map(app => [app.hnId?.toLowerCase(), app]))
@@ -85,11 +87,19 @@ export function ReleasesProvider({ children }) {
           if (rec.alpId) actMap[rec.alpId.toLowerCase()] = rec
         }
 
+        // Build monet map
+        const monetMap = {}
+        for (const rec of mn.records || []) {
+          if (rec.hnId)  monetMap[rec.hnId.toLowerCase()]  = rec
+          if (rec.alpId) monetMap[rec.alpId.toLowerCase()] = rec
+        }
+
         setAppLinkMap(appLinkMap)
         setReleases(releases)
         setApps(appList)
         setTimelines(tlMap)
         setActivities(actMap)
+        setMonet(monetMap)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -116,7 +126,7 @@ export function ReleasesProvider({ children }) {
 
   return (
     <StoreCtx.Provider value={{
-      releases, apps, appLinkMap, timelines, activities,
+      releases, apps, appLinkMap, timelines, activities, monet,
       loading, refresh, addReleaseHint, addOptimisticRelease,
       watchlist, toggleWatchlist, counts,
     }}>

@@ -6,7 +6,7 @@ import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
 import AppDetailModal from '../components/AppDetailModal'
 
-const ROLLOUT_OPTIONS = ['--', '1%', '5%', '10%', '20%', '50%', '99%', '100%']
+const ROLLOUT_OPTIONS = ['--', '5%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '99%', '100%']
 const EMPTY = { app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' }
 
 export default function Dashboard() {
