@@ -36,7 +36,7 @@ export function ReleasesProvider({ children }) {
   const refresh = useCallback(() => {
     setLoading(true)
     Promise.all([
-      getReleases({ pageSize: 500 }),
+      getReleases(),
       getApps(),
       getTimeline(),
       getActivities(),

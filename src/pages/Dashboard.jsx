@@ -136,12 +136,12 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <button
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
+          className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
           style={{ background: '#0d9488' }}
           onMouseEnter={e => e.currentTarget.style.background = '#0f766e'}
           onMouseLeave={e => e.currentTarget.style.background = '#0d9488'}
@@ -166,11 +166,11 @@ export default function Dashboard() {
 
       {/* Recent */}
       <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 gap-2 border-b border-surface-200">
           <p className="text-sm font-semibold">15 bản phát hành gần nhất</p>
           <div className="flex items-center gap-3">
             <input
-              className="input w-48 text-xs py-1.5"
+              className="input w-full sm:w-48 text-xs py-1.5"
               placeholder="Tìm theo tên app, version, mô tả..."
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -309,7 +309,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="p-5 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version <span style={{ color: '#ef4444' }}>*</span></label>
                   <input className="input" placeholder="1.2.3" value={editForm.version} onChange={e => setEditForm(f => ({ ...f, version: e.target.value }))} />
@@ -381,7 +381,7 @@ export default function Dashboard() {
                   )
                 })()}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Version <span style={{ color: '#ef4444' }}>*</span></label>
                   <input className="input" placeholder="1.2.3" value={form.version} onChange={e => setForm(f => ({ ...f, version: e.target.value }))} />

@@ -360,7 +360,7 @@ function ActivitiesTab({ app, initialActivity, timeline, latestRelease }) {
             return (
               <p className="text-xs mt-0.5 font-medium" style={{ color: '#f59e0b' }}>
                 ⚡ Đang có request update
-                {days !== null && <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold" style={{ background: '#fef3c7', color: '#b45309' }}>{days} ngày</span>}
+                {days !== null && <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold" style={{ background: '#fef3c7', color: '#b45309' }}>{days} ngày trước</span>}
               </p>
             )
           })()}
@@ -696,7 +696,7 @@ export default function AppDetailModal({ app, onClose }) {
       style={{ background: 'rgba(0,0,0,0.45)' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden"
-        style={{ width: '92vw', maxWidth: 900, height: '88vh' }}>
+        style={{ width: '96vw', maxWidth: 900, height: '92vh' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 shrink-0">

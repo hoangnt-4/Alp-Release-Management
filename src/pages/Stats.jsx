@@ -520,10 +520,15 @@ const STATUS_BADGE_STYLE = {
   'Pending Review': { bg: 'rgba(245,158,11,0.12)', color: '#b45309' },
 }
 
+const CAL_LAST_APP_KEY = 'rm_calendar_last_app'
+
 function ReleaseCalendarView({ releases, apps, timelines }) {
   const location = useLocation()
   const navigate = useNavigate()
-  const initApp  = new URLSearchParams(location.search).get('app') || ''
+  // URL param takes priority, else restore last viewed app from localStorage
+  const initApp  = new URLSearchParams(location.search).get('app')
+    || localStorage.getItem(CAL_LAST_APP_KEY)
+    || ''
 
   const [selectedApp, setSelectedApp] = useState(() =>
     initApp ? apps.find(a => (a.alpId || a.hnId || '').toLowerCase() === initApp.toLowerCase()) || null : null
@@ -553,11 +558,13 @@ function ReleaseCalendarView({ releases, apps, timelines }) {
   }, [search, uniqueApps])
 
   const selectApp = (app) => {
+    const key = (app.alpId || app.hnId || '').toLowerCase()
+    localStorage.setItem(CAL_LAST_APP_KEY, key)
     setSelectedApp(app)
     setSearch(app.alpId || app.hnId || '')
     setShowDrop(false)
     setSelDate(null)
-    navigate(`/stats?view=calendar&app=${encodeURIComponent((app.alpId||app.hnId||'').toLowerCase())}`, { replace: true })
+    navigate(`/stats?view=calendar&app=${encodeURIComponent(key)}`, { replace: true })
   }
 
   const appTimeline = useMemo(() => {
@@ -881,11 +888,11 @@ export default function Stats() {
       .map(([label, value]) => ({ label, value }))
   }, [releases])
 
-  if (loading) return <div className="p-6 text-sm" style={{ color: '#94a3b8' }}>Đang tải...</div>
+  if (loading) return <div className="p-3 md:p-6 text-sm" style={{ color: '#94a3b8' }}>Đang tải...</div>
 
   if (view === 'gantt') {
     return (
-      <div className="p-6">
+      <div className="p-3 md:p-6">
         <GanttChart timelines={timelines} apps={apps} />
       </div>
     )
@@ -896,7 +903,7 @@ export default function Stats() {
   }
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-3 md:p-6 space-y-5">
       <h1 className="text-xl font-semibold">Thống kê</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

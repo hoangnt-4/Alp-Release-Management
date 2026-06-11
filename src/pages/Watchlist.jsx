@@ -9,7 +9,7 @@ export default function Watchlist() {
   const saved = releases.filter(r => watchlist.has(r.id))
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Xem sau</h1>
         <span className="text-sm" style={{ color: '#94a3b8' }}>{saved.length} bản phát hành</span>

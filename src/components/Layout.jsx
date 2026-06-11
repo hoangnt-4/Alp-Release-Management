@@ -61,8 +61,9 @@ export default function Layout({ children }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      {/* Sidebar — desktop only */}
       <aside
-        className={clsx('flex flex-col shrink-0 transition-all duration-200', collapsed ? 'w-14' : 'w-56')}
+        className={clsx('hidden md:flex flex-col shrink-0 transition-all duration-200', collapsed ? 'w-14' : 'w-56')}
         style={{ background: '#0f172a', color: '#fff' }}
       >
         {/* Logo */}
@@ -229,9 +230,41 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-surface-50">
+      <main className="flex-1 overflow-auto bg-surface-50 pb-16 md:pb-0">
         {children}
       </main>
+
+      {/* Bottom nav — mobile only */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 flex items-stretch border-t z-50"
+        style={{ background: '#0f172a', borderColor: 'rgba(255,255,255,0.08)', height: 56 }}
+      >
+        {NAV.map(({ to, label, icon, defaultStatus }) => {
+          const active = location.pathname === to
+          return (
+            <button
+              key={to}
+              onClick={() => navigate(defaultStatus ? `${to}?status=${defaultStatus}` : to)}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors"
+              style={{ color: active ? '#2dd4bf' : 'rgba(255,255,255,0.45)' }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1 }}>{icon}</span>
+              <span style={{ fontSize: 9, fontWeight: active ? 600 : 400, letterSpacing: '0.02em' }}>
+                {label === 'Lịch sử phát hành' ? 'Lịch sử' : label}
+              </span>
+            </button>
+          )
+        })}
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing || loading}
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors disabled:opacity-40"
+          style={{ color: 'rgba(255,255,255,0.45)' }}
+        >
+          <span className={clsx('text-lg leading-none', (refreshing || loading) && 'animate-spin')}>↻</span>
+          <span style={{ fontSize: 9 }}>Refresh</span>
+        </button>
+      </nav>
 
       {showHistory && <ActivityHistoryModal onClose={() => setShowHistory(false)} />}
     </div>

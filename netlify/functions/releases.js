@@ -20,19 +20,20 @@ export default async (req, context) => {
     const hdrs  = larkHeaders(token)
 
     if (req.method === 'GET' && !recordId) {
-      const pageSize  = url.searchParams.get('pageSize') || 100
-      const pageToken = url.searchParams.get('pageToken') || ''
-      const larkRes = await fetch(
-        `${BASE_URL}/apps/${BASE_ID}/tables/${TBL_RELEASES}/records?page_size=${pageSize}${pageToken ? '&page_token=' + pageToken : ''}`,
-        { headers: hdrs }
-      )
-      const data = await larkRes.json()
-      if (data.code !== 0) throw new Error(data.msg)
-      return new Response(JSON.stringify({
-        records:   (data.data?.items || []).map(mapRelease),
-        pageToken: data.data?.page_token || null,
-        hasMore:   data.data?.has_more || false,
-      }), { status: 200, headers })
+      // Fetch all pages server-side — client gets 1 response with all records
+      let all = [], pageToken = '', hasMore = true
+      while (hasMore) {
+        const larkRes = await fetch(
+          `${BASE_URL}/apps/${BASE_ID}/tables/${TBL_RELEASES}/records?page_size=500${pageToken ? '&page_token=' + pageToken : ''}`,
+          { headers: hdrs }
+        )
+        const data = await larkRes.json()
+        if (data.code !== 0) throw new Error(data.msg)
+        all       = all.concat((data.data?.items || []).map(mapRelease))
+        hasMore   = data.data?.has_more || false
+        pageToken = data.data?.page_token || ''
+      }
+      return new Response(JSON.stringify({ records: all, hasMore: false }), { status: 200, headers })
     }
 
     if (req.method === 'POST' && !recordId) {

@@ -180,7 +180,7 @@ return releases.filter(r => {
   const clearFilter = () => { setFilter({ search: '', status: '', platform: '', rollout: '', dateFrom: '', dateTo: '', requestUpdate: false }); setPage(1) }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-3 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Lịch sử phát hành</h1>
