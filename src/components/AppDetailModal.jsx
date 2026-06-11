@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { updateActivity, updateRelease, deleteRelease } from '../lib/lark'
 import { addEvent } from '../lib/activityHistory'
 import { useReleasesStore } from '../hooks/useReleasesStore'
@@ -610,6 +611,7 @@ function PriorityBadge({ value }) {
 
 export default function AppDetailModal({ app, onClose }) {
   const { releases, refresh, timelines, activities, monet } = useReleasesStore()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('activities')
 
   const appKey      = app.hnId?.toLowerCase() || app.alpId?.toLowerCase() || ''
@@ -757,7 +759,17 @@ export default function AppDetailModal({ app, onClose }) {
           {/* Left: Timeline */}
           <div className="overflow-auto border-r border-surface-100 shrink-0" style={{ width: 220 }}>
             <div className="p-4">
-              <p className="text-xs font-semibold uppercase mb-4" style={{ color: '#94a3b8', letterSpacing: '0.05em' }}>Timeline</p>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-semibold uppercase" style={{ color: '#94a3b8', letterSpacing: '0.05em' }}>Timeline</p>
+                <button
+                  onClick={() => { onClose(); navigate(`/stats?view=calendar&app=${encodeURIComponent((app.alpId || app.hnId || '').toLowerCase())}`) }}
+                  style={{ fontSize: 11, color: '#0d9488', background: 'rgba(13,148,136,0.08)', border: 'none', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(13,148,136,0.15)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(13,148,136,0.08)'}
+                >
+                  📅 Calendar
+                </button>
+              </div>
               <VerticalTimeline timeline={timeline} />
 
               <ReleaseEventSection

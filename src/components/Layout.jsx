@@ -49,8 +49,9 @@ export default function Layout({ children }) {
   const currentView   = new URLSearchParams(location.search).get('view')   || 'stats'
 
   const STATS_TABS = [
-    { value: 'stats', label: 'Overview' },
-    { value: 'gantt', label: 'Timeline' },
+    { value: 'stats',     label: 'Overview' },
+    { value: 'gantt',     label: 'Timeline' },
+    { value: 'calendar',  label: 'Release Calendar' },
   ]
 
   const handleRefresh = async () => {

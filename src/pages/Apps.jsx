@@ -179,19 +179,20 @@ export default function Apps() {
       </div>
 
       {/* Filters */}
-      <div className="card p-3 flex flex-wrap gap-2 items-center">
+      <div className="card px-2.5 py-2 flex flex-nowrap gap-1.5 items-center overflow-x-auto">
         <input
-          className="input w-56 text-xs py-1.5"
+          className="input text-xs py-1 px-2 shrink-0"
+          style={{ width: 168 }}
           placeholder="Tìm theo Alp ID, HN ID..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <select className="input w-36 text-xs py-1.5" value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)}>
+        <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 130 }} value={filterPlatform} onChange={e => setFilterPlatform(e.target.value)}>
           <option value="">Tất cả platform</option>
           <option value="iOS">iOS</option>
           <option value="Android">Android</option>
         </select>
-        <select className="input w-44 text-xs py-1.5" value={filterTimeline} onChange={e => setFilterTimeline(e.target.value)}>
+        <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 148 }} value={filterTimeline} onChange={e => setFilterTimeline(e.target.value)}>
           <option value="">Tất cả giai đoạn</option>
           <option value="none">Chưa có timeline</option>
           <option value="figma">Figma</option>
@@ -200,7 +201,7 @@ export default function Apps() {
           <option value="live_ads">Live Full Ads</option>
           <option value="live_iap">Live iAP</option>
         </select>
-        <select className="input w-36 text-xs py-1.5" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+        <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 130 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
           <option value="">Tất cả status</option>
           <option value="NEW">NEW</option>
           <option value="UI FIGMA">UI FIGMA</option>
@@ -212,32 +213,32 @@ export default function Apps() {
           <option value="UNPUBLISHED">UNPUBLISHED</option>
           <option value="ABANDONED">ABANDONED</option>
         </select>
-        <select className="input w-36 text-xs py-1.5" value={filterShow} onChange={e => setFilterShow(e.target.value)}>
+        <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 116 }} value={filterShow} onChange={e => setFilterShow(e.target.value)}>
           <option value="">Show Intro</option>
           {showOpts.map(v => <option key={v} value={v}>{v}</option>)}
         </select>
-        <select className="input w-40 text-xs py-1.5" value={filterLocalNoti} onChange={e => setFilterLocalNoti(e.target.value)}>
+        <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 116 }} value={filterLocalNoti} onChange={e => setFilterLocalNoti(e.target.value)}>
           <option value="">Local Noti</option>
           {localNotiOpts.map(v => <option key={v} value={v}>{v}</option>)}
         </select>
-        <select className="input w-28 text-xs py-1.5" value={filterIap} onChange={e => setFilterIap(e.target.value)}>
+        <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 80 }} value={filterIap} onChange={e => setFilterIap(e.target.value)}>
           <option value="">iAP</option>
           <option value="live">Live</option>
           <option value="no">No</option>
         </select>
         <button
-          className="text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium"
+          className="text-xs px-2 py-1 rounded-lg border transition-colors font-medium shrink-0 whitespace-nowrap"
           style={filterRequest ? { background: '#fef3c7', color: '#d97706', borderColor: '#fcd34d' } : { borderColor: '#e2e8f0', color: '#64748b' }}
           onClick={() => setFilterRequest(v => !v)}
         >⚡ Request Update</button>
         <button
-          className="text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium"
+          className="text-xs px-2 py-1 rounded-lg border transition-colors font-medium shrink-0 whitespace-nowrap"
           style={filterCrash ? { background: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' } : { borderColor: '#e2e8f0', color: '#64748b' }}
           onClick={() => setFilterCrash(v => !v)}
         >🔴 Crash</button>
         {(search || filterPlatform || filterTimeline || filterStatus || filterRequest || filterCrash || filterShow || filterConfig || filterLocalNoti || filterIap) && (
           <button
-            className="text-xs px-2.5 py-1.5 rounded-lg border border-surface-200 hover:bg-surface-100"
+            className="text-xs px-2 py-1 rounded-lg border border-surface-200 hover:bg-surface-100 shrink-0 whitespace-nowrap"
             style={{ color: '#64748b' }}
             onClick={() => { setSearch(''); setFilterPlatform(''); setFilterTimeline(''); setFilterStatus(''); setFilterRequest(false); setFilterCrash(false); setFilterShow(''); setFilterConfig(''); setFilterLocalNoti(''); setFilterIap('') }}
           >Xoá filter</button>

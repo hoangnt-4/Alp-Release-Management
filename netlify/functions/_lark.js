@@ -50,7 +50,7 @@ export function mapRelease(record) {
     releaseNote:     f['Release Note'] || '',
     status:          f['Status'] || '',
     reviewer:        larkText(f['Reviewer']),
-    lastCheckedDate: f['Last Checked Date'] ? new Date(f['Last Checked Date']).toISOString().slice(0, 10) : '',
+    lastCheckedDate: f['Last Checked Date'] ? new Date(f['Last Checked Date'] + 7*3600000).toISOString().slice(0, 10) : '',
     reviewNotes:     f['Review Notes'] || '',
   }
 }
@@ -103,7 +103,7 @@ export function mapApp(record) {
 
 function larkDate(v) {
   if (!v) return ''
-  if (typeof v === 'number') return new Date(v).toISOString().slice(0, 10)
+  if (typeof v === 'number') return new Date(v + 7 * 3600000).toISOString().slice(0, 10)
   return String(v).slice(0, 10)
 }
 
