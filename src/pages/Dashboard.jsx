@@ -2,22 +2,29 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { createRelease, updateRelease, deleteRelease } from '../lib/lark'
+import { addEvent } from '../lib/activityHistory'
 import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
 import AppDetailModal from '../components/AppDetailModal'
 
 const ROLLOUT_OPTIONS = ['--', '5%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '99%', '100%']
-const EMPTY = { app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' }
+const emptyForm = () => ({ app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' })
+const incrementVersion = (ver) => {
+  if (!ver) return ''
+  const parts = ver.split('.')
+  parts[parts.length - 1] = String(parseInt(parts[parts.length - 1] || '0', 10) + 1)
+  return parts.join('.')
+}
 
 export default function Dashboard() {
   const { releases, apps, appLinkMap, activities, loading, counts, refresh, watchlist, toggleWatchlist, addReleaseHint, addOptimisticRelease } = useReleasesStore()
-  const [form, setForm]               = useState(EMPTY)
+  const [form, setForm]               = useState(emptyForm())
   const [selectedApp, setSelectedApp] = useState(null)
   const [saving, setSaving]           = useState(false)
   const [search, setSearch]           = useState('')
   const [modal, setModal]             = useState(false)
 
-  const openModal  = () => { setForm(EMPTY); setSelectedApp(null); setModal(true) }
+  const openModal  = () => { setForm(emptyForm()); setSelectedApp(null); setModal(true) }
   const closeModal = () => { setModal(false); setSelectedApp(null) }
 
   // Edit modal
@@ -51,7 +58,17 @@ export default function Dashboard() {
   const handleEdit = async () => {
     if (!editModal) return
     setEditSaving(true)
-    try { await updateRelease(editModal.id, editForm); setEditModal(null); refresh() }
+    try {
+      await updateRelease(editModal.id, editForm)
+      const appName = editModal.appName || editModal.app || ''
+      const FIELDS = { version: 'Version', rollout: 'Roll-out', releaseDate: 'Ngày phát hành', releaseNote: 'Mô tả' }
+      for (const [key, label] of Object.entries(FIELDS)) {
+        const oldVal = String(editModal[key] || '')
+        const newVal = String(editForm[key] || '')
+        if (oldVal !== newVal) addEvent({ appId: editModal.hnId || appName, appName, field: key, fieldLabel: label, oldValue: oldVal, newValue: newVal })
+      }
+      setEditModal(null); refresh()
+    }
     finally { setEditSaving(false) }
   }
 
@@ -71,7 +88,9 @@ export default function Dashboard() {
   const handleSelectApp = (app) => {
     setSelectedApp(app)
     const linkId = app ? (appLinkMap[(app.alpId || '').toLowerCase()] || '') : ''
-    setForm(f => ({ ...f, app: app?.id || '', hnId: app?.hnId || '', alpId: app?.alpId || '', appLinkId: linkId }))
+    const latest = app ? getLatestVersion(app) : null
+    const nextVersion = incrementVersion(latest?.version || '')
+    setForm(f => ({ ...f, app: app?.id || '', hnId: app?.hnId || '', alpId: app?.alpId || '', appLinkId: linkId, version: nextVersion }))
   }
 
   // Latest version for a given app (by hnId or alpId)
@@ -102,7 +121,7 @@ export default function Dashboard() {
           _appId:   selectedApp.id,
         })
       }
-      setForm(EMPTY)
+      setForm(emptyForm())
       setSelectedApp(null)
       setModal(false)
       refresh()

@@ -142,21 +142,27 @@ const LINK_FIELDS = ['linkRequest', 'linkRequest2', 'linkRequest3', 'linkRequest
 
 const IS_URL = v => /^https?:\/\//i.test(v)
 
-function LinkRow({ index, value, saving, onSave }) {
+function LinkRow({ index, value, dateValue, saving, onSave }) {
   const [input, setInput]     = useState(value || '')
+  const [date, setDate]       = useState(dateValue || '')
   const [editing, setEditing] = useState(false)
 
   useEffect(() => { setInput(value || '') }, [value])
+  useEffect(() => { setDate(dateValue || '') }, [dateValue])
 
-  const handleSave = async () => { await onSave(input.trim()); setEditing(false) }
+  const handleSave = async () => {
+    const today = new Date().toISOString().slice(0, 10)
+    await onSave(input.trim(), date || today)
+    setEditing(false)
+  }
 
   return (
     <div className={`px-4 py-3 ${index > 0 ? 'border-t border-surface-100' : ''}`}>
       {index > 0 && <p className="text-xs mb-1.5 font-medium" style={{ color: '#94a3b8' }}>#{index + 1}</p>}
       {editing ? (
-        <div className="flex gap-2">
+        <div className="space-y-2">
           <textarea
-            className="input text-xs flex-1 resize-none"
+            className="input text-xs w-full resize-none"
             placeholder="Nhập link hoặc nội dung..."
             rows={2}
             value={input}
@@ -164,23 +170,31 @@ function LinkRow({ index, value, saving, onSave }) {
             onKeyDown={e => e.key === 'Enter' && e.metaKey && handleSave()}
             autoFocus
           />
-          <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <input type="date" className="input text-xs flex-1"
+              value={date || new Date().toISOString().slice(0, 10)}
+              onChange={e => setDate(e.target.value)} />
             <button onClick={handleSave} disabled={saving}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-50"
               style={{ background: '#0d9488' }}>{saving ? '...' : 'Lưu'}</button>
-            <button onClick={() => { setEditing(false); setInput(value || '') }}
+            <button onClick={() => { setEditing(false); setInput(value || ''); setDate(dateValue || '') }}
               className="px-3 py-1.5 rounded-lg text-xs border border-surface-200">Huỷ</button>
           </div>
         </div>
       ) : (
         <div className="flex items-start gap-2">
-          {value
-            ? IS_URL(value)
-              ? <a href={value} target="_blank" rel="noopener noreferrer"
-                  className="text-xs truncate flex-1 hover:underline" style={{ color: '#0d9488' }}>{value}</a>
-              : <p className="text-xs flex-1 break-words whitespace-pre-wrap" style={{ color: '#334155' }}>{value}</p>
-            : <span className="text-xs flex-1" style={{ color: '#cbd5e1' }}>Chưa có nội dung</span>
-          }
+          <div className="flex-1 min-w-0">
+            {value
+              ? IS_URL(value)
+                ? <a href={value} target="_blank" rel="noopener noreferrer"
+                    className="text-xs truncate block hover:underline" style={{ color: '#0d9488' }}>{value}</a>
+                : <p className="text-xs break-words whitespace-pre-wrap" style={{ color: '#334155' }}>{value}</p>
+              : <span className="text-xs" style={{ color: '#cbd5e1' }}>Chưa có nội dung</span>
+            }
+            {dateValue && (
+              <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{dateValue}</p>
+            )}
+          </div>
           <button onClick={() => setEditing(true)}
             className="text-xs px-2 py-1 rounded border border-surface-200 hover:bg-surface-50 shrink-0"
             style={{ color: '#64748b' }}>{value ? 'Sửa' : '+ Thêm'}</button>
@@ -210,18 +224,32 @@ function LinkRequestsBlock({ activity, saving, onSaveLink, initCount }) {
           key={field}
           index={i}
           value={activity[field]}
+          dateValue={activity.lastedRequest}
           saving={saving}
-          onSave={val => onSaveLink(field, val)}
+          onSave={(val, date) => onSaveLink(field, val, date)}
         />
       ))}
     </div>
   )
 }
 
-function ActivitiesTab({ app, initialActivity, timeline }) {
+function ActivitiesTab({ app, initialActivity, timeline, latestRelease }) {
   const [activity, setActivity] = useState(initialActivity || null)
   const [loading, setLoading]   = useState(!initialActivity)
   const [saving, setSaving]     = useState(false)
+
+  // Auto turn off toggles if latest release note already addresses them
+  useEffect(() => {
+    if (!activity || !latestRelease?.releaseNote) return
+    const note = latestRelease.releaseNote.toLowerCase()
+    const patch = {}
+    if (activity.fixCrashes   && (note.includes('fix crash') || note.includes('fix bug')))      patch.fixCrashes   = false
+    if (activity.requestUpdate && (note.includes('update request') || note.includes('request update'))) patch.requestUpdate = false
+    if (Object.keys(patch).length === 0) return
+    updateActivity(activity.id, patch)
+      .then(() => setActivity(a => ({ ...a, ...patch })))
+      .catch(() => {})
+  }, [latestRelease?.id, activity?.fixCrashes, activity?.requestUpdate])
 
   useEffect(() => {
     if (initialActivity !== undefined) {
@@ -242,6 +270,16 @@ function ActivitiesTab({ app, initialActivity, timeline }) {
       .finally(() => setLoading(false))
   }, [app, initialActivity])
 
+  const handleToggleFixCrashes = async () => {
+    if (!activity) return
+    setSaving(true)
+    try {
+      const newVal = !activity.fixCrashes
+      await updateActivity(activity.id, { fixCrashes: newVal })
+      setActivity(a => ({ ...a, fixCrashes: newVal }))
+    } finally { setSaving(false) }
+  }
+
   const handleToggleRequest = async () => {
     if (!activity) return
     setSaving(true)
@@ -261,12 +299,13 @@ function ActivitiesTab({ app, initialActivity, timeline }) {
     } finally { setSaving(false) }
   }
 
-  const handleSaveLink = async (field, val) => {
+  const handleSaveLink = async (field, val, date) => {
     if (!activity) return
     setSaving(true)
     try {
-      await updateActivity(activity.id, { [field]: val })
-      setActivity(a => ({ ...a, [field]: val }))
+      const patch = { [field]: val, lastedRequest: date || null }
+      await updateActivity(activity.id, patch)
+      setActivity(a => ({ ...a, ...patch }))
     } finally { setSaving(false) }
   }
 
@@ -288,6 +327,25 @@ function ActivitiesTab({ app, initialActivity, timeline }) {
             {type === 'noti' ? <LocalNotiBadge value={value} /> : type === 'iap' ? <IapBadge value={value} /> : <SelectBadge value={value} />}
           </div>
         ))}
+      </div>
+
+      {/* Fix Crashes toggle */}
+      <div className="rounded-xl border border-surface-100 px-4 py-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium" style={{ color: '#1e293b' }}>Fix Crashes</p>
+          {activity.fixCrashes && (
+            <p className="text-xs mt-0.5 font-medium" style={{ color: '#ef4444' }}>🔴 Đang có crash cần fix</p>
+          )}
+        </div>
+        <button
+          onClick={handleToggleFixCrashes}
+          disabled={saving}
+          className="relative w-10 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50"
+          style={{ background: activity.fixCrashes ? '#ef4444' : '#e2e8f0' }}
+        >
+          <span className="absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all"
+            style={{ left: activity.fixCrashes ? '22px' : '2px' }} />
+        </button>
       </div>
 
       {/* Request Update toggle */}
@@ -739,7 +797,7 @@ export default function AppDetailModal({ app, onClose }) {
 
             {/* Tab content */}
             <div className="flex-1 overflow-auto">
-              {tab === 'activities' && <ActivitiesTab app={app} initialActivity={appActivity} timeline={timeline} />}
+              {tab === 'activities' && <ActivitiesTab app={app} initialActivity={appActivity} timeline={timeline} latestRelease={latestRelease} />}
 
               {tab === 'monet' && <MonetTab data={monetData} />}
 

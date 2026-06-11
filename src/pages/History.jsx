@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { updateRelease, createRelease, deleteRelease } from '../lib/lark'
+import { addEvent } from '../lib/activityHistory'
 import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
 import ImportModal from '../components/ImportModal'
@@ -10,14 +11,16 @@ import clsx from 'clsx'
 
 const STATUS_OPTS = ['', 'Checked', 'Updated', 'Pending Review', 'Checking', 'New']
 const ROLLOUT_OPTS = ['', '--', '5%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '99%', '100%']
-const EMPTY_FORM  = { app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' }
+const emptyForm = () => ({ app: '', releaseNote: '', version: '', releaseDate: new Date().toISOString().slice(0, 10), rollout: '--' })
 
 function sortRows(rows, key, dir) {
   if (!key) return rows
-  return [...rows].sort((a, b) => {
+  return rows.map((r, i) => ({ r, i })).sort(({ r: a, i: ai }, { r: b, i: bi }) => {
     const av = a[key] || '', bv = b[key] || ''
-    return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
-  })
+    const cmp = dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+    // tiebreaker: Lark returns newest-added last → reverse index puts it first
+    return cmp !== 0 ? cmp : bi - ai
+  }).map(({ r }) => r)
 }
 
 export default function History() {
@@ -33,7 +36,7 @@ export default function History() {
   const [saving, setSaving]           = useState(false)
 
   const [addModal, setAddModal]       = useState(false)
-  const [addForm, setAddForm]         = useState(EMPTY_FORM)
+  const [addForm, setAddForm]         = useState(emptyForm())
   const [selectedApp, setSelectedApp] = useState(null)
   const [addSaving, setAddSaving]     = useState(false)
 
@@ -44,7 +47,7 @@ export default function History() {
 
   const [importModal, setImportModal]   = useState(false)
 
-  const openAddModal = () => { setAddForm(EMPTY_FORM); setSelectedApp(null); setAddModal(true) }
+  const openAddModal = () => { setAddForm(emptyForm()); setSelectedApp(null); setAddModal(true) }
 
   const openEditModal = (r) => {
     // Resolve platform from apps list if release record doesn't have it
@@ -61,7 +64,17 @@ export default function History() {
   const handleEdit = async () => {
     if (!editModal) return
     setEditSaving(true)
-    try { await updateRelease(editModal.id, editForm); setEditModal(null); refresh() }
+    try {
+      await updateRelease(editModal.id, editForm)
+      const appName = editModal.appName || editModal.app || ''
+      const FIELDS = { version: 'Version', rollout: 'Roll-out', releaseDate: 'Ngày phát hành', releaseNote: 'Mô tả' }
+      for (const [key, label] of Object.entries(FIELDS)) {
+        const oldVal = String(editModal[key] || '')
+        const newVal = String(editForm[key] || '')
+        if (oldVal !== newVal) addEvent({ appId: editModal.hnId || appName, appName, field: key, fieldLabel: label, oldValue: oldVal, newValue: newVal })
+      }
+      setEditModal(null); refresh()
+    }
     finally { setEditSaving(false) }
   }
 
@@ -73,10 +86,20 @@ export default function History() {
     finally { setEditSaving(false) }
   }
 
+  const incrementVersion = (ver) => {
+    if (!ver) return ''
+    const parts = ver.split('.')
+    if (parts.length < 2) return ver
+    parts[parts.length - 1] = String(parseInt(parts[parts.length - 1] || '0', 10) + 1)
+    return parts.join('.')
+  }
+
   const handleSelectApp = (app) => {
     setSelectedApp(app)
     const linkId = app ? (appLinkMap[(app.alpId || '').toLowerCase()] || '') : ''
-    setAddForm(f => ({ ...f, app: app?.id || '', hnId: app?.hnId || '', alpId: app?.alpId || '', appLinkId: linkId }))
+    const latest = app ? getLatestVersion(app) : null
+    const nextVersion = incrementVersion(latest?.version || '')
+    setAddForm(f => ({ ...f, app: app?.id || '', hnId: app?.hnId || '', alpId: app?.alpId || '', appLinkId: linkId, version: nextVersion }))
   }
 
   // Latest version for a given app (by hnId or alpId)
@@ -107,7 +130,7 @@ export default function History() {
           _appId:   selectedApp.id,
         })
       }
-      setAddModal(false); setAddForm(EMPTY_FORM); setSelectedApp(null); refresh()
+      setAddModal(false); setAddForm(emptyForm()); setSelectedApp(null); refresh()
     }
     finally { setAddSaving(false) }
   }

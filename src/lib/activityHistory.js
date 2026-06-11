@@ -17,8 +17,8 @@ function saveHistory(arr) {
   localStorage.setItem(KEY_HISTORY, JSON.stringify(arr.slice(-1000)))
 }
 
-export function addEvent({ appId, appName, field, oldValue, newValue }) {
-  const fieldLabel = TRACKED_FIELDS[field] || field
+export function addEvent({ appId, appName, field, fieldLabel: fieldLabelOverride, oldValue, newValue }) {
+  const fieldLabel = fieldLabelOverride || TRACKED_FIELDS[field] || field
   const history = getHistory()
   history.push({
     id:         `${Date.now()}_${Math.random()}`,

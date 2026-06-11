@@ -132,6 +132,7 @@ export function mapActivity(record) {
     config:         larkText(f['Config']),
     localNoti:      larkText(f['Local Noti']),
     iap:            f['iAP'] === true || f['iAP'] === 1,
+    fixCrashes:     f['Fix crashes'] === true || f['Fix crashes'] === 1,
     requestUpdate:  f['Request Update'] === true || f['Request Update'] === 1,
     linkRequest:    larkText(f['Link Request']),
     linkRequest2:   larkText(f['Link Request 2']),
@@ -147,6 +148,7 @@ export function buildActivityFields(data) {
   if (data.config         !== undefined) fields['Config']          = data.config
   if (data.localNoti      !== undefined) fields['Local Noti']      = data.localNoti
   if (data.iap            !== undefined) fields['iAP']             = !!data.iap
+  if (data.fixCrashes     !== undefined) fields['Fix crashes']     = !!data.fixCrashes
   if (data.requestUpdate  !== undefined) fields['Request Update']  = data.requestUpdate
   if (data.lastedRequest  !== undefined) fields['Request Date']    = data.lastedRequest ? new Date(data.lastedRequest).getTime() : null
   if (data.linkRequest    !== undefined) fields['Link Request']    = data.linkRequest   || null

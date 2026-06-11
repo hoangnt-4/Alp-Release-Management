@@ -77,6 +77,7 @@ export default function Apps() {
   const [filterTimeline, setFilterTimeline] = useState('')
   const [filterStatus, setFilterStatus]     = useState(urlStatus)
   const [filterRequest, setFilterRequest]   = useState(false)
+  const [filterCrash, setFilterCrash]       = useState(false)
   const [filterShow, setFilterShow]         = useState('')
   const [filterConfig, setFilterConfig]     = useState('')
   const [filterLocalNoti, setFilterLocalNoti] = useState('')
@@ -120,6 +121,10 @@ export default function Apps() {
         const act = activities[a.hnId?.toLowerCase()] || activities[a.alpId?.toLowerCase()]
         if (!act?.requestUpdate) return false
       }
+      if (filterCrash) {
+        const act = activities[a.hnId?.toLowerCase()] || activities[a.alpId?.toLowerCase()]
+        if (!act?.fixCrashes) return false
+      }
       if (filterShow || filterConfig || filterLocalNoti || filterIap !== '') {
         const act = activities[a.hnId?.toLowerCase()] || activities[a.alpId?.toLowerCase()]
         if (filterShow      && (act?.show      || '') !== filterShow)      return false
@@ -130,7 +135,7 @@ export default function Apps() {
       }
       return true
     })
-  }, [apps, search, filterPlatform, filterTimeline, filterStatus, filterRequest, filterShow, filterConfig, filterLocalNoti, filterIap, timelines, activities])
+  }, [apps, search, filterPlatform, filterTimeline, filterStatus, filterRequest, filterCrash, filterShow, filterConfig, filterLocalNoti, filterIap, timelines, activities])
 
   // Unique option values from activities
   const actList = useMemo(() => Object.values(activities), [activities])
@@ -225,11 +230,16 @@ export default function Apps() {
           style={filterRequest ? { background: '#fef3c7', color: '#d97706', borderColor: '#fcd34d' } : { borderColor: '#e2e8f0', color: '#64748b' }}
           onClick={() => setFilterRequest(v => !v)}
         >⚡ Request Update</button>
-        {(search || filterPlatform || filterTimeline || filterStatus || filterRequest || filterShow || filterConfig || filterLocalNoti || filterIap) && (
+        <button
+          className="text-xs px-2.5 py-1.5 rounded-lg border transition-colors font-medium"
+          style={filterCrash ? { background: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' } : { borderColor: '#e2e8f0', color: '#64748b' }}
+          onClick={() => setFilterCrash(v => !v)}
+        >🔴 Crash</button>
+        {(search || filterPlatform || filterTimeline || filterStatus || filterRequest || filterCrash || filterShow || filterConfig || filterLocalNoti || filterIap) && (
           <button
             className="text-xs px-2.5 py-1.5 rounded-lg border border-surface-200 hover:bg-surface-100"
             style={{ color: '#64748b' }}
-            onClick={() => { setSearch(''); setFilterPlatform(''); setFilterTimeline(''); setFilterStatus(''); setFilterRequest(false); setFilterShow(''); setFilterConfig(''); setFilterLocalNoti(''); setFilterIap('') }}
+            onClick={() => { setSearch(''); setFilterPlatform(''); setFilterTimeline(''); setFilterStatus(''); setFilterRequest(false); setFilterCrash(false); setFilterShow(''); setFilterConfig(''); setFilterLocalNoti(''); setFilterIap('') }}
           >Xoá filter</button>
         )}
       </div>
@@ -296,6 +306,10 @@ export default function Apps() {
                             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#3b82f6' }} />
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 hidden group-hover:block text-xs whitespace-nowrap pointer-events-none" style={{ color: '#64748b' }}>Monet</span>
                           </span>
+                        )}
+                        {act?.fixCrashes && (
+                          <span className="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
+                            style={{ background: '#fee2e2', color: '#dc2626' }}>🔴 Crash</span>
                         )}
                         {act?.requestUpdate && (
                           <span className="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
