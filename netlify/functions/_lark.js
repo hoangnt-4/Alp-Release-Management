@@ -98,6 +98,7 @@ export function mapApp(record) {
     taskBugListUrl:     larkUrl(f['Task/Bug List']),
     localNotiScript:    larkText(f['Local Noti Script']),
     localNotiScriptUrl: larkUrl(f['Local Noti Script']),
+    storeAccount:       larkText(f['Store Account']),
   }
 }
 
@@ -193,6 +194,7 @@ export function mapMonet(record) {
     alpId:    larkText(f['Alp ID']),
     hnId:     larkText(f['HN ID']),
     priority: larkText(f['Priority']),
+    note:     larkText(f['Note']),
     months,
   }
 }

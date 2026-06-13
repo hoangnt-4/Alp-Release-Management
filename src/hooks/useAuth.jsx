@@ -1,17 +1,14 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import netlifyIdentity from 'netlify-identity-widget'
+import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
 const SKIP_AUTH = import.meta.env.VITE_SKIP_AUTH === 'true'
 
-// Allowed emails: comma-separated in VITE_ALLOWED_EMAILS
-// e.g. "hoangnt@alphalogy.net,user2@alphalogy.net"
-// If empty → allow all (rely on Netlify Identity invite-only setting)
+// Optional allowlist — comma-separated emails in VITE_ALLOWED_EMAILS
+// Leave empty to allow any authenticated Google account
 const ALLOWED = (import.meta.env.VITE_ALLOWED_EMAILS || '')
-  .split(',')
-  .map(e => e.trim().toLowerCase())
-  .filter(Boolean)
+  .split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
 
 function isAllowed(email) {
   if (!email) return false
@@ -20,50 +17,50 @@ function isAllowed(email) {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser]         = useState(SKIP_AUTH ? { email: 'dev@local', name: 'Dev' } : null)
-  const [loading, setLoading]   = useState(!SKIP_AUTH)
-  const [denied, setDenied]     = useState(false)
+  const [user,    setUser]    = useState(SKIP_AUTH ? { email: 'dev@local', user_metadata: { name: 'Dev' } } : null)
+  const [loading, setLoading] = useState(!SKIP_AUTH)
+  const [denied,  setDenied]  = useState(false)
 
   useEffect(() => {
     if (SKIP_AUTH) return
 
-    netlifyIdentity.init({
-      logo: false,
-      APIUrl: 'https://alp-release.netlify.app/.netlify/identity',
+    // Restore session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const u = session?.user ?? null
+      if (u && !isAllowed(u.email)) {
+        setDenied(true)
+        supabase.auth.signOut()
+      } else {
+        setUser(u)
+      }
+      setLoading(false)
     })
 
-    const currentUser = netlifyIdentity.currentUser()
-    if (currentUser) {
-      if (isAllowed(currentUser.email)) {
-        setUser(currentUser)
-      } else {
-        setDenied(true)
-        netlifyIdentity.logout()
-      }
-    }
-    setLoading(false)
-
-    netlifyIdentity.on('login', u => {
-      netlifyIdentity.close()
-      if (isAllowed(u.email)) {
-        setDenied(false)
-        setUser(u)
-      } else {
+    // Listen for auth changes (includes OAuth redirect callback)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user ?? null
+      if (u && !isAllowed(u.email)) {
         setDenied(true)
         setUser(null)
-        netlifyIdentity.logout()
+        supabase.auth.signOut()
+      } else {
+        setDenied(false)
+        setUser(u)
       }
     })
-    netlifyIdentity.on('logout', () => { setUser(null) })
 
-    return () => {
-      netlifyIdentity.off('login')
-      netlifyIdentity.off('logout')
-    }
+    return () => subscription.unsubscribe()
   }, [])
 
-  const login  = () => { setDenied(false); netlifyIdentity.open('login') }
-  const logout = () => netlifyIdentity.logout()
+  const login = () => {
+    setDenied(false)
+    supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    })
+  }
+
+  const logout = () => supabase.auth.signOut()
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, denied }}>

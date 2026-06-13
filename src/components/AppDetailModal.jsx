@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import ReactDOM from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { updateActivity, updateRelease, deleteRelease } from '../lib/lark'
 import { addEvent } from '../lib/activityHistory'
@@ -7,6 +8,7 @@ import { PlatformBadge, RolloutBadge } from '../pages/Dashboard'
 import StatusBadge from './StatusBadge'
 import { AppStatusBadge } from '../pages/Apps'
 import { FEATURES } from '../lib/features'
+import StoreAccountSidebar from './StoreAccountSidebar'
 
 const STATUS_OPTS   = ['', 'Checked', 'Updated', 'Pending Review', 'Checking', 'New']
 const ROLLOUT_OPTS  = ['--', '5%', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '99%', '100%']
@@ -610,9 +612,10 @@ function PriorityBadge({ value }) {
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
 export default function AppDetailModal({ app, onClose }) {
-  const { releases, refresh, timelines, activities, monet } = useReleasesStore()
+  const { releases, refresh, timelines, activities, monet, apps } = useReleasesStore()
   const navigate = useNavigate()
   const [tab, setTab] = useState('activities')
+  const [showAccountPanel, setShowAccountPanel] = useState(false)
 
   const appKey      = app.hnId?.toLowerCase() || app.alpId?.toLowerCase() || ''
   const timeline    = timelines[appKey] || null
@@ -691,9 +694,9 @@ export default function AppDetailModal({ app, onClose }) {
     ...(FEATURES.monet ? [{ key: 'monet', label: 'Monet', dot: hasMonetData }] : []),
   ]
 
-  return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
-      style={{ background: 'rgba(0,0,0,0.45)' }}
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.45)', zIndex: 1000 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden"
         style={{ width: '96vw', maxWidth: 900, height: '92vh' }}>
@@ -733,6 +736,17 @@ export default function AppDetailModal({ app, onClose }) {
                     </span>
                   )
                 })()}
+                {app.storeAccount && app.storeAccount !== '--' && (
+                  <button
+                    onClick={() => setShowAccountPanel(true)}
+                    className="text-xs px-1.5 py-0.5 rounded"
+                    style={{ background: '#f1f5f9', color: '#475569', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9' }}
+                  >
+                    <span style={{ color: '#94a3b8', fontWeight: 400 }}>by</span> {app.storeAccount}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -975,6 +989,15 @@ export default function AppDetailModal({ app, onClose }) {
           </div>
         </div>
       )}
-    </div>
+
+      {showAccountPanel && app.storeAccount && app.storeAccount !== '--' && (
+        <StoreAccountSidebar
+          account={app.storeAccount}
+          apps={apps || []}
+          onClose={() => setShowAccountPanel(false)}
+        />
+      )}
+    </div>,
+    document.body
   )
 }

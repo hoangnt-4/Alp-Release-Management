@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { useAuth } from '../hooks/useAuth'
+import { canAccessMonet } from '../lib/monetAccess'
 import { downloadCSV } from '../lib/lark'
 import ActivityHistoryModal from './ActivityHistoryModal'
 import clsx from 'clsx'
@@ -26,7 +27,12 @@ const STATUS_DOT = {
   ABANDONED:    '#ef4444',
 }
 
-const NAV = [
+function useMonetAccess() {
+  const { user } = useAuth()
+  return canAccessMonet(user?.email)
+}
+
+const BASE_NAV = [
   { to: '/dashboard', label: 'Dashboard',          icon: '⌂' },
   { to: '/apps',      label: 'Apps',               icon: '⊞', defaultStatus: 'RUNNING' },
   { to: '/history',   label: 'Lịch sử phát hành', icon: '≡', countKey: 'total' },
@@ -37,6 +43,10 @@ const NAV = [
 export default function Layout({ children }) {
   const { counts, releases, apps, refresh, loading } = useReleasesStore()
   const { user, logout } = useAuth()
+  const hasMonet = useMonetAccess()
+  const NAV = hasMonet
+    ? [...BASE_NAV, { to: '/monet', label: 'Monet', icon: '◈' }]
+    : BASE_NAV
   const [collapsed, setCollapsed]   = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -239,7 +249,7 @@ export default function Layout({ children }) {
         className="md:hidden fixed bottom-0 left-0 right-0 flex items-stretch border-t z-50"
         style={{ background: '#0f172a', borderColor: 'rgba(255,255,255,0.08)', height: 56 }}
       >
-        {NAV.map(({ to, label, icon, defaultStatus }) => {
+        {NAV.slice(0, hasMonet ? 6 : 5).map(({ to, label, icon, defaultStatus }) => {
           const active = location.pathname === to
           return (
             <button

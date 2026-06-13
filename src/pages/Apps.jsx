@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { useLocation } from 'react-router-dom'
 import AppDetailModal from '../components/AppDetailModal'
+import StoreAccountSidebar from '../components/StoreAccountSidebar'
 import { FEATURES } from '../lib/features'
 
 const STATUS_STYLES = {
@@ -88,6 +89,7 @@ export default function Apps() {
   const [sort, setSort] = useState({ key: 'hnId', dir: 'asc' })
   const toggleSort = useCallback((key) => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' })), [])
   const [detailApp, setDetailApp] = useState(null)
+  const [accountSidebar, setAccountSidebar] = useState(null) // store account name string
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -299,9 +301,11 @@ export default function Apps() {
                           style={{ background: platform.toLowerCase().includes('android') ? '#34a853' : '#007aff' }}>
                           {platform.toLowerCase().includes('android') ? 'A' : 'i'}
                         </div>
-                        <span className="font-medium text-xs" style={{ color: '#1e293b' }}>
-                          {String(a.alpId || '') || '—'}
-                        </span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-medium text-xs" style={{ color: '#1e293b' }}>
+                            {String(a.alpId || '') || '—'}
+                          </span>
+                        </div>
                         {FEATURES.monet && (() => { const m = monet[a.alpId?.toLowerCase()] || monet[a.hnId?.toLowerCase()]; return m && Object.keys(m.months || {}).length > 0 })() && (
                           <span className="group relative inline-flex items-center">
                             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: '#3b82f6' }} />
@@ -365,6 +369,15 @@ export default function Apps() {
 
       {detailApp && (
         <AppDetailModal app={detailApp} onClose={() => setDetailApp(null)} />
+      )}
+
+      {accountSidebar && (
+        <StoreAccountSidebar
+          account={accountSidebar}
+          apps={apps || []}
+          onClose={() => setAccountSidebar(null)}
+          onSelectApp={a => { setAccountSidebar(null); setDetailApp(a) }}
+        />
       )}
     </div>
   )

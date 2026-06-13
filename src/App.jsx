@@ -10,9 +10,12 @@ import Stats from './pages/Stats'
 import Apps from './pages/Apps'
 import Tutorial from './pages/Tutorial'
 import Login from './pages/Login'
+import Monet from './pages/Monet'
+import { canAccessMonet } from './lib/monetAccess'
 
 function PrivateApp() {
   const { user, loading } = useAuth()
+  const hasMonet = canAccessMonet(user?.email)
 
   if (loading) {
     return (
@@ -34,6 +37,7 @@ function PrivateApp() {
           <Route path="/watchlist" element={<Watchlist />} />
           <Route path="/stats" element={<Stats />} />
           <Route path="/apps" element={<Apps />} />
+          {hasMonet && <Route path="/monet" element={<Monet />} />}
           <Route path="/tutorial" element={<Tutorial />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

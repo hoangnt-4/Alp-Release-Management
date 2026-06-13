@@ -1,0 +1,17 @@
+[
+  {"app_key":"app250","ad_unit":"App250_inter_splash",             "type":"interstitial","month":null,"requests":7166, "match_rate":97.28,"matched_requests":6971,"show_rate":93.43,"impressions":6513,"ctr":14.17,"clicks":923},
+  {"app_key":"app250","ad_unit":"App250_inter_successfully",       "type":"interstitial","month":null,"requests":3315, "match_rate":97.95,"matched_requests":3247,"show_rate":94.70,"impressions":3075,"ctr":6.99, "clicks":215},
+  {"app_key":"app250","ad_unit":"App250_inter_set_question",       "type":"interstitial","month":null,"requests":777,  "match_rate":98.07,"matched_requests":762, "show_rate":96.85,"impressions":738, "ctr":6.10, "clicks":45},
+  {"app_key":"app250","ad_unit":"App250_native_bg_first",          "type":"native",      "month":null,"requests":2302, "match_rate":98.39,"matched_requests":2265,"show_rate":98.94,"impressions":2241,"ctr":17.36,"clicks":389},
+  {"app_key":"app250","ad_unit":"App250_openapp_resume",           "type":"app_open",    "month":null,"requests":3108, "match_rate":99.52,"matched_requests":3093,"show_rate":83.80,"impressions":2592,"ctr":5.02, "clicks":130},
+  {"app_key":"app250","ad_unit":"App250_native_language_select",   "type":"native",      "month":null,"requests":2597, "match_rate":97.50,"matched_requests":2532,"show_rate":88.15,"impressions":2232,"ctr":10.89,"clicks":243},
+  {"app_key":"app250","ad_unit":"App250_native_permission_inapp",  "type":"native",      "month":null,"requests":2691, "match_rate":98.74,"matched_requests":2657,"show_rate":88.22,"impressions":2344,"ctr":10.75,"clicks":252},
+  {"app_key":"app250","ad_unit":"App250_banner_all",               "type":"banner",      "month":null,"requests":40288,"match_rate":90.75,"matched_requests":36562,"show_rate":57.96,"impressions":21190,"ctr":1.34,"clicks":284},
+  {"app_key":"app250","ad_unit":"App250_native_all",               "type":"native",      "month":null,"requests":3640, "match_rate":98.76,"matched_requests":3595,"show_rate":83.50,"impressions":3002,"ctr":5.83, "clicks":175},
+  {"app_key":"app250","ad_unit":"App250_native_intro1",            "type":"native",      "month":null,"requests":2168, "match_rate":98.66,"matched_requests":2139,"show_rate":90.37,"impressions":1933,"ctr":7.71, "clicks":149},
+  {"app_key":"app250","ad_unit":"App250_native_language",          "type":"native",      "month":null,"requests":2359, "match_rate":97.97,"matched_requests":2311,"show_rate":94.33,"impressions":2180,"ctr":1.10, "clicks":24},
+  {"app_key":"app250","ad_unit":"App250_reward_stickers_0703",     "type":"rewarded",    "month":null,"requests":190,  "match_rate":96.84,"matched_requests":184, "show_rate":91.30,"impressions":168, "ctr":11.31,"clicks":19},
+  {"app_key":"app250","ad_unit":"App250_native_intro3",            "type":"native",      "month":null,"requests":2004, "match_rate":98.40,"matched_requests":1972,"show_rate":85.75,"impressions":1691,"ctr":3.37, "clicks":57},
+  {"app_key":"app250","ad_unit":"App250_reward_mood_style_0703",   "type":"rewarded",    "month":null,"requests":36,   "match_rate":72.22,"matched_requests":26,  "show_rate":42.31,"impressions":11,  "ctr":9.09, "clicks":1},
+  {"app_key":"app250","ad_unit":"App250_native_permission_storage","type":"native",      "month":null,"requests":9,    "match_rate":0.00, "matched_requests":0,   "show_rate":null, "impressions":0,  "ctr":null, "clicks":0}
+]
