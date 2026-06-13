@@ -489,12 +489,12 @@ function AdsUploader({ onData, onClear, hasData, uploadMeta, existingMonths = []
       if      (ext === 'json') parsed = parseAdsJson(text, null)
       else if (ext === 'csv')  parsed = parseAdsCsv(text, null)
       else { setError('Chỉ hỗ trợ .json hoặc .csv'); return }
-      if (!parsed.months.length) {
-        setPending({ parsed, filename: file.name, rows: parsed.units.length })
-      } else {
-        onData(parsed, { filename: file.name, rows: parsed.units.length, months: parsed.months })
-        close()
-      }
+      // Always ask user to confirm/pick the date
+      const prefillDate = parsed.months.length
+        ? `${parsed.months[0].slice(0,4)}-${parsed.months[0].slice(4,6)}-${parsed.months[0].slice(6,8) || '01'}`
+        : ''
+      if (prefillDate) setDateInput(prefillDate)
+      setPending({ parsed, filename: file.name, rows: parsed.units.length })
     } catch (e) { setError(`Lỗi parse: ${e.message}`) }
   }
 
@@ -505,10 +505,11 @@ function AdsUploader({ onData, onClear, hasData, uploadMeta, existingMonths = []
     const mo = dateInput.replace(/-/g, '')
     const updated = {
       months: [mo],
-      units: pendingData.parsed.units.map(u => ({
-        ...u,
-        data: Object.fromEntries(Object.entries(u.data).map(([k, v]) => [k === '__pending__' ? mo : k, v])),
-      })),
+      units: pendingData.parsed.units.map(u => {
+        // Merge all existing data values into one entry under the selected date
+        const merged = Object.values(u.data).reduce((acc, v) => ({ ...acc, ...v }), {})
+        return { ...u, data: { [mo]: merged } }
+      }),
     }
     onData(updated, { filename: pendingData.filename, rows: pendingData.rows, months: [mo] })
     close()
