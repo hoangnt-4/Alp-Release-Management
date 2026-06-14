@@ -293,10 +293,13 @@ const ADS_METRICS = [
   { key: 'clicks',      label: 'Số lượt nhấp',    fmt: v => v?.toLocaleString() ?? '—',               isPercent: false },
 ]
 
-function AdsHorizBarChart({ units, months, metricKey, filterType }) {
+function AdsHorizBarChart({ units, months, metricKey, filterType, unitOrder }) {
   const [hovUnit, setHovUnit] = useState(null)
   const metric = ADS_METRICS.find(m => m.key === metricKey)
-  const filtered = filterType === 'all' ? units : units.filter(u => u.type === filterType)
+  const base = filterType === 'all' ? units : units.filter(u => u.type === filterType)
+  const filtered = unitOrder?.length
+    ? [...base].sort((a, b) => { const ia = unitOrder.indexOf(a.name), ib = unitOrder.indexOf(b.name); return (ia === -1 ? 9999 : ia) - (ib === -1 ? 9999 : ib) })
+    : base
   const allVals = filtered.flatMap(u => months.map(m => u.data[m]?.[metricKey] ?? 0))
   const maxVal = Math.max(...allVals, 1)
 
@@ -348,10 +351,12 @@ function AdsHorizBarChart({ units, months, metricKey, filterType }) {
   )
 }
 
-function AdsTableView({ units, months, filterType }) {
-  const [col0W, setCol0W]     = useState(180)
-  const [sortKey, setSortKey] = useState(null)   // null | 'name' | metric key
-  const [sortDir, setSortDir] = useState('desc')
+function AdsTableView({ units, months, filterType, maxHeight = 460, unitOrder, onReorder }) {
+  const [col0W, setCol0W]       = useState(180)
+  const [sortKey, setSortKey]   = useState(null)
+  const [sortDir, setSortDir]   = useState('desc')
+  const [dragName, setDragName] = useState(null)
+  const [overName, setOverName] = useState(null)
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -360,19 +365,28 @@ function AdsTableView({ units, months, filterType }) {
 
   const baseFiltered = filterType === 'all' ? units : units.filter(u => u.type === filterType)
   const filtered = useMemo(() => {
-    if (!sortKey) return baseFiltered
-    return [...baseFiltered].sort((a, b) => {
-      let va, vb
-      if (sortKey === 'name') {
-        va = a.name; vb = b.name
-        return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
+    if (!sortKey) {
+      if (unitOrder?.length) {
+        const idx = Object.fromEntries(unitOrder.map((n, i) => [n, i]))
+        return [...baseFiltered].sort((a, b) => (idx[a.name] ?? 9999) - (idx[b.name] ?? 9999))
       }
-      // sum across months (nulls = 0 for sorting)
-      va = months.reduce((s, m) => s + (a.data[m]?.[sortKey] ?? 0), 0)
-      vb = months.reduce((s, m) => s + (b.data[m]?.[sortKey] ?? 0), 0)
+      return baseFiltered
+    }
+    return [...baseFiltered].sort((a, b) => {
+      const va = months.reduce((s, m) => s + (a.data[m]?.[sortKey] ?? 0), 0)
+      const vb = months.reduce((s, m) => s + (b.data[m]?.[sortKey] ?? 0), 0)
       return sortDir === 'asc' ? va - vb : vb - va
     })
-  }, [baseFiltered, sortKey, sortDir, months])
+  }, [baseFiltered, sortKey, sortDir, months, unitOrder])
+
+  const handleDrop = (targetName) => {
+    if (!dragName || dragName === targetName) { setDragName(null); setOverName(null); return }
+    const names = filtered.map(u => u.name)
+    const from = names.indexOf(dragName), to = names.indexOf(targetName)
+    const next = [...names]; next.splice(from, 1); next.splice(to, 0, dragName)
+    onReorder?.(next)
+    setDragName(null); setOverName(null)
+  }
 
   const startResize = (e) => {
     e.preventDefault()
@@ -393,21 +407,20 @@ function AdsTableView({ units, months, filterType }) {
     borderBottom: isLast ? '2px solid #cbd5e1' : '1px solid #f1f5f9',
   })
   return (
-    <div style={{ overflowX: 'auto', maxHeight: 460, overflowY: 'auto' }}>
+    <div style={{ overflowX: 'auto', maxHeight, overflowY: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
         <colgroup>
+          <col style={{ width: 28 }} />
           <col style={{ width: col0W }} />
         </colgroup>
         <thead>
           <tr>
+            {/* Drag handle col */}
+            <th style={{ ...thStyle(), width: 28, padding: '7px 4px' }} />
             {/* Col 0: sortable name + resize handle */}
-            <th style={{ ...thStyle('left'), position: 'sticky', top: 0, left: 0, zIndex: 2, width: col0W, cursor: 'pointer', userSelect: 'none' }}
-              onClick={() => toggleSort('name')}>
+            <th style={{ ...thStyle('left'), position: 'sticky', top: 0, left: 0, zIndex: 2, width: col0W, userSelect: 'none' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  Đơn vị quảng cáo
-                  {sortKey === 'name' && <span style={{ fontSize: 10 }}>{sortDir === 'asc' ? '▲' : '▼'}</span>}
-                </span>
+                <span>Đơn vị quảng cáo</span>
                 <span onMouseDown={e => { e.stopPropagation(); startResize(e) }}
                   style={{ width: 4, cursor: 'col-resize', alignSelf: 'stretch', background: '#cbd5e1', borderRadius: 2, marginLeft: 6, flexShrink: 0 }} />
               </div>
@@ -428,26 +441,42 @@ function AdsTableView({ units, months, filterType }) {
         <tbody>
           {filtered.map((unit, ui) => {
             const tc = TYPE_COLOR[unit.type] || '#94a3b8'
-            const rowBg = ui % 2 === 0 ? '#ffffff' : '#fafafa'
+            const isDragging = dragName === unit.name
+            const isOver = overName === unit.name
+            const rowBg = isOver ? '#f0fdf4' : isDragging ? '#f8fafc' : ui % 2 === 0 ? '#ffffff' : '#fafafa'
             return months.map((mo, mi) => {
               const d = unit.data[mo] || {}
               const isLast = mi === months.length - 1
               return (
-                <tr key={unit.name + mo} style={{ background: rowBg }}>
+                <tr key={unit.name + mo} style={{ background: rowBg, opacity: isDragging ? 0.5 : 1 }}
+                  onDragOver={e => { e.preventDefault(); setOverName(unit.name) }}
+                  onDrop={() => handleDrop(unit.name)}
+                  onDragLeave={() => setOverName(null)}
+                >
                   {mi === 0 && (
-                    <td rowSpan={months.length} style={{
-                      ...tdStyle('left', true),
-                      verticalAlign: 'middle',
-                      borderRight: '1px solid #e2e8f0',
-                      background: rowBg,
-                      position: 'sticky', left: 0,
-                      overflow: 'hidden',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: tc, flexShrink: 0, display: 'inline-block' }} />
-                        <span style={{ fontWeight: 500, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={unit.name}>{unit.name}</span>
-                      </div>
-                    </td>
+                    <>
+                      {/* Drag handle */}
+                      <td rowSpan={months.length} style={{ ...tdStyle(), verticalAlign: 'middle', padding: '0 4px', width: 28, cursor: onReorder ? 'grab' : 'default', borderBottom: '2px solid #cbd5e1' }}
+                        draggable={!!onReorder}
+                        onDragStart={() => setDragName(unit.name)}
+                        onDragEnd={() => { setDragName(null); setOverName(null) }}
+                      >
+                        {onReorder && <span style={{ color: '#cbd5e1', fontSize: 14, userSelect: 'none' }}>⠿</span>}
+                      </td>
+                      <td rowSpan={months.length} style={{
+                        ...tdStyle('left', true),
+                        verticalAlign: 'middle',
+                        borderRight: '1px solid #e2e8f0',
+                        background: rowBg,
+                        position: 'sticky', left: 0,
+                        overflow: 'hidden',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: tc, flexShrink: 0, display: 'inline-block' }} />
+                          <span style={{ fontWeight: 500, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={unit.name}>{unit.name}</span>
+                        </div>
+                      </td>
+                    </>
                   )}
                   <td style={{ ...tdStyle(), ...(isLast && { borderBottom: '2px solid #cbd5e1' }), color: MONTH_COLORS[mi % MONTH_COLORS.length], fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {fmtAdPeriod(mo)}
@@ -618,6 +647,255 @@ function AdsUploader({ onData, onClear, hasData, uploadMeta, existingMonths = []
   )
 }
 
+// ─── Engagement (avg session time) tab ───────────────────────────────────────
+function fmtSeconds(s) {
+  if (s == null) return '—'
+  const m = Math.floor(s / 60), sec = s % 60
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`
+}
+
+function EngageLineChart({ data }) {
+  // data: [{ month, avg_seconds }] sorted asc
+  if (!data.length) return null
+  const vals = data.map(d => d.avg_seconds)
+  const maxV = Math.max(...vals, 1)
+  const minV = Math.min(...vals)
+  const pad  = Math.max((maxV - minV) * 0.3, 10)
+  const lo   = Math.max(0, minV - pad)
+  const hi   = maxV + pad
+  const n = data.length
+  const W = Math.max(480, n * 80), H = 220
+  const PAD = { t: 28, b: 44, l: 56, r: 24 }
+  const xOf = i => PAD.l + (i / Math.max(n - 1, 1)) * (W - PAD.l - PAD.r)
+  const yOf = v => PAD.t + (1 - (v - lo) / (hi - lo)) * (H - PAD.t - PAD.b)
+  const pts = data.map((d, i) => `${xOf(i)},${yOf(d.avg_seconds)}`).join(' ')
+  const [hov, setHov] = React.useState(null)
+
+  return (
+    <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} style={{ minWidth: W }}>
+        {[lo, (lo + hi) / 2, hi].map((v, i) => (
+          <g key={i}>
+            <line x1={PAD.l} x2={W - PAD.r} y1={yOf(v)} y2={yOf(v)} stroke="#f1f5f9" strokeWidth={1} />
+            <text x={PAD.l - 6} y={yOf(v) + 4} textAnchor="end" fontSize={10} fill="#94a3b8">{fmtSeconds(Math.round(v))}</text>
+          </g>
+        ))}
+        <polyline points={pts} fill="none" stroke="#2dd4bf" strokeWidth={2.5} strokeLinejoin="round" />
+        {data.map((d, i) => (
+          <g key={d.month} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)} style={{ cursor: 'pointer' }}>
+            <circle cx={xOf(i)} cy={yOf(d.avg_seconds)} r={hov === i ? 6 : 4} fill={hov === i ? '#0d9488' : '#2dd4bf'} />
+            {hov === i && (
+              <text x={xOf(i)} y={yOf(d.avg_seconds) - 10} textAnchor="middle" fontSize={11} fontWeight={600} fill="#0d9488">
+                {fmtSeconds(d.avg_seconds)}
+              </text>
+            )}
+            <text x={xOf(i)} y={H - PAD.b + 14} textAnchor="middle" fontSize={10} fill="#94a3b8">
+              {fmtAdPeriod(d.month)}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+// Module-level session cache — survives tab switches, cleared on page refresh
+const _engageCache = {}
+const _adsCache    = {}
+
+function EngageTab({ appKey }) {
+  const [data,       setData]       = useState(null)   // [{ month, avg_seconds }]
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState(null)
+  const [saveStatus, setSaveStatus] = useState(null)   // null | 'saving' | 'saved' | 'error'
+  const [delStatus,  setDelStatus]  = useState(null)
+  const [showForm,   setShowForm]   = useState(false)
+  const [formDate,   setFormDate]   = useState('')
+  const [formMin,    setFormMin]    = useState('')
+  const [formSec,    setFormSec]    = useState('')
+  const [confirmDel, setConfirmDel] = useState(false)
+  const [delMonths,  setDelMonths]  = useState([])
+
+  useEffect(() => {
+    if (!appKey) return
+    if (_engageCache[appKey]) { setData(_engageCache[appKey]); return }
+    setData(null); setError(null)
+    setLoading(true)
+    fetch(`/api/engagement?app_key=${encodeURIComponent(appKey)}`)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(d => { _engageCache[appKey] = d; setData(d); setLoading(false) })
+      .catch(e => { setError(e.message); setLoading(false) })
+  }, [appKey])
+
+  const handleSave = () => {
+    if (!formDate) return
+    const mo = formDate.replace(/-/g, '')
+    const secs = (parseInt(formMin || '0', 10) * 60) + parseInt(formSec || '0', 10)
+    if (secs <= 0) return
+    setSaveStatus('saving')
+    fetch('/api/engagement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app_key: appKey, entries: [{ month: mo, avg_seconds: secs }] }),
+    })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(() => {
+        setData(prev => {
+          const updated = [...(prev || []).filter(d => d.month !== mo), { month: mo, avg_seconds: secs }]
+            .sort((a, b) => a.month.localeCompare(b.month))
+          _engageCache[appKey] = updated
+          return updated
+        })
+        setSaveStatus('saved'); setShowForm(false); setFormDate(''); setFormMin(''); setFormSec('')
+        setTimeout(() => setSaveStatus(null), 3000)
+      })
+      .catch(() => setSaveStatus('error'))
+  }
+
+  const handleDelete = () => {
+    if (!delMonths.length) return
+    setDelStatus('deleting')
+    fetch('/api/engagement', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app_key: appKey, months: delMonths }),
+    })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
+      .then(() => {
+        setData(prev => {
+          const updated = (prev || []).filter(d => !delMonths.includes(d.month))
+          _engageCache[appKey] = updated
+          return updated
+        })
+        setDelStatus('done'); setConfirmDel(false); setDelMonths([])
+        setTimeout(() => setDelStatus(null), 3000)
+      })
+      .catch(() => setDelStatus('error'))
+  }
+
+  const sorted = data || []
+
+  const deleteModal = confirmDel && ReactDOM.createPortal(
+    <>
+      <div onClick={() => setConfirmDel(false)} style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.45)' }} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 9999, width: 360, background: '#fff', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: 24 }}>
+        <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Xoá dữ liệu thời gian</p>
+        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>Chọn tháng muốn xoá:</p>
+        <div style={{ maxHeight: 200, overflowY: 'auto', marginBottom: 16 }}>
+          {sorted.map(d => (
+            <label key={d.month} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', cursor: 'pointer', fontSize: 13 }}>
+              <input type="checkbox" checked={delMonths.includes(d.month)} onChange={() => setDelMonths(prev => prev.includes(d.month) ? prev.filter(m => m !== d.month) : [...prev, d.month])} />
+              {fmtAdPeriod(d.month)} — {fmtSeconds(d.avg_seconds)}
+            </label>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={() => setConfirmDel(false)} style={{ padding: '7px 16px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, cursor: 'pointer' }}>Huỷ</button>
+          <button onClick={handleDelete} disabled={!delMonths.length || delStatus === 'deleting'}
+            style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !delMonths.length ? 0.5 : 1 }}>
+            {delStatus === 'deleting' ? 'Đang xoá…' : 'Xoá'}
+          </button>
+        </div>
+      </div>
+    </>,
+    document.body
+  )
+
+  return (
+    <div>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        {saveStatus === 'saved'  && <span style={{ fontSize: 11, color: '#16a34a' }}>✓ Đã lưu</span>}
+        {saveStatus === 'error'  && <span style={{ fontSize: 11, color: '#ef4444' }}>⚠ Lỗi lưu</span>}
+        {delStatus  === 'done'   && <span style={{ fontSize: 11, color: '#16a34a' }}>✓ Đã xoá</span>}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          {sorted.length > 0 && (
+            <button onClick={() => { setDelMonths([...sorted.map(d => d.month)]); setConfirmDel(true) }}
+              style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff', color: '#ef4444', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+              ⚙ Quản lý dữ liệu
+            </button>
+          )}
+          <button onClick={() => setShowForm(v => !v)}
+            style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: showForm ? '#0d9488' : '#fff', color: showForm ? '#fff' : '#475569', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>
+            + Nhập thủ công
+          </button>
+        </div>
+      </div>
+
+      {/* Manual entry form */}
+      {showForm && (
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: '#0f172a' }}>Nhập thời gian sử dụng trung bình</p>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <p style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Ngày / Tháng</p>
+              <input type="date" value={formDate} onChange={e => setFormDate(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none' }} />
+            </div>
+            <div>
+              <p style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Phút</p>
+              <input type="number" min="0" value={formMin} onChange={e => setFormMin(e.target.value)} placeholder="0"
+                style={{ width: 64, padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none' }} />
+            </div>
+            <div>
+              <p style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Giây</p>
+              <input type="number" min="0" max="59" value={formSec} onChange={e => setFormSec(e.target.value)} placeholder="0"
+                style={{ width: 64, padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 13, outline: 'none' }} />
+            </div>
+            <button onClick={handleSave} disabled={!formDate || saveStatus === 'saving'}
+              style={{ padding: '7px 18px', borderRadius: 8, border: 'none', background: '#0d9488', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: !formDate ? 0.5 : 1 }}>
+              {saveStatus === 'saving' ? 'Đang lưu…' : 'Lưu'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      {loading && <div style={{ padding: '40px 16px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>⏳ Đang tải…</div>}
+      {error && <div style={{ padding: '16px', color: '#f59e0b', fontSize: 12 }}>⚠ {error}</div>}
+      {!loading && !error && sorted.length === 0 && (
+        <div style={{ padding: '40px 16px', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>⏱</div>
+          <p style={{ fontSize: 13, margin: 0 }}>Chưa có dữ liệu — nhấn <b>+ Nhập thủ công</b> để thêm</p>
+        </div>
+      )}
+      {!loading && sorted.length > 0 && (
+        <>
+          <EngageLineChart data={sorted} />
+          <div style={{ marginTop: 16, overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', color: '#64748b', fontWeight: 500 }}>Period</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#64748b', fontWeight: 500 }}>Avg. Engagement Time</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#64748b', fontWeight: 500 }}>MoM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((d, i) => {
+                  const prev = sorted[i - 1]
+                  const diff = prev ? d.avg_seconds - prev.avg_seconds : null
+                  const pct  = prev && prev.avg_seconds ? ((diff / prev.avg_seconds) * 100).toFixed(1) : null
+                  return (
+                  <tr key={d.month} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '10px 12px', color: '#0f172a', fontWeight: 500 }}>{fmtAdPeriod(d.month)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'monospace', color: '#2dd4bf', fontWeight: 700, fontSize: 13 }}>{fmtSeconds(d.avg_seconds)}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, color: diff == null ? '#94a3b8' : diff >= 0 ? '#16a34a' : '#ef4444', fontWeight: 500 }}>
+                      {pct == null ? '—' : `${diff >= 0 ? '▲' : '▼'} ${Math.abs(pct)}%`}
+                    </td>
+                  </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+      {deleteModal}
+    </div>
+  )
+}
+
 function AdsChart({ appKey }) {
   const [dbData,     setDbData]     = useState(null)   // loaded from Supabase
   const [dbLoading,  setDbLoading]  = useState(false)
@@ -628,17 +906,35 @@ function AdsChart({ appKey }) {
   const [confirmDelete,  setConfirmDelete]  = useState(false)
   const [deleteMonths,   setDeleteMonths]   = useState([])  // selected months to delete
   const [deleteStatus,   setDeleteStatus]   = useState(null) // null | 'deleting' | 'done' | 'error'
+  const [fullTable,      setFullTable]      = useState(false)
+  const [unitOrder,      setUnitOrder]      = useState(null) // custom drag order: [name, ...]
 
-  // Load from Supabase whenever appKey changes
+  // Load saved unit order from localStorage on appKey change
   useEffect(() => {
     if (!appKey) return
-    setDbData(null); setDbError(null); setUploadedData(null); setUploadMeta(null)
+    try {
+      const saved = localStorage.getItem(`rm_ads_order_${appKey}`)
+      setUnitOrder(saved ? JSON.parse(saved) : null)
+    } catch { setUnitOrder(null) }
+  }, [appKey])
+
+  const handleReorder = (newOrder) => {
+    setUnitOrder(newOrder)
+    try { localStorage.setItem(`rm_ads_order_${appKey}`, JSON.stringify(newOrder)) } catch {}
+  }
+
+  // Load from Supabase whenever appKey changes (with session cache)
+  useEffect(() => {
+    if (!appKey) return
+    setUploadedData(null); setUploadMeta(null); setDbError(null)
+    if (_adsCache[appKey]) { setDbData(_adsCache[appKey]); setDbLoading(false); return }
+    setDbData(null)
     setDbLoading(true)
     fetch(`/api/ads?app_key=${encodeURIComponent(appKey)}`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(d => {
         if (!d || !Array.isArray(d.units)) throw new Error('Invalid response')
-        setDbData(d); setDbLoading(false)
+        _adsCache[appKey] = d; setDbData(d); setDbLoading(false)
       })
       .catch(e => { setDbError(e.message); setDbLoading(false) })
   }, [appKey])
@@ -682,7 +978,9 @@ function AdsChart({ appKey }) {
       .then(d => {
         if (d.ok) {
           setSaveStatus(isUpdate ? 'updated' : 'saved')
-          setDbData(mergeIntoDb(dbData, parsed))
+          const merged = mergeIntoDb(dbData, parsed)
+          _adsCache[appKey] = merged
+          setDbData(merged)
           setUploadedData(null)
           setUploadMeta(null)
           setTimeout(() => setSaveStatus(null), 3000)
@@ -709,13 +1007,15 @@ function AdsChart({ appKey }) {
         if (d.ok) {
           // Remove deleted months from local state
           const remaining = (dbData?.months || []).filter(m => !deleteMonths.includes(m))
-          setDbData({
+          const updated = {
             months: remaining,
             units: (dbData?.units || []).map(u => ({
               ...u,
               data: Object.fromEntries(Object.entries(u.data).filter(([k]) => !deleteMonths.includes(k))),
             })),
-          })
+          }
+          _adsCache[appKey] = updated
+          setDbData(updated)
           setUploadedData(null); setUploadMeta(null)
           setSaveStatus(null); setDeleteStatus('done')
           setConfirmDelete(false); setDeleteMonths([])
@@ -827,9 +1127,40 @@ function AdsChart({ appKey }) {
             </button>
           )}
           <AdsUploader {...uploaderProps} />
+          {hasDbData && viewMode === 'table' && (
+            <button onClick={() => setFullTable(true)}
+              title="Xem bảng toàn màn hình"
+              style={{ padding: '5px 8px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 13, cursor: 'pointer', lineHeight: 1 }}>
+              ⛶
+            </button>
+          )}
         </div>
       </div>
       {deleteModal}
+
+      {/* Full-table modal */}
+      {fullTable && ReactDOM.createPortal(
+        <>
+          <div onClick={() => setFullTable(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.5)' }} />
+          <div style={{
+            position: 'fixed', inset: '5vh 3vw', zIndex: 9999,
+            background: '#fff', borderRadius: 14,
+            boxShadow: '0 24px 80px rgba(0,0,0,0.25)',
+            display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>Bảng Ads</span>
+              <button onClick={() => setFullTable(false)}
+                style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '8px 0' }}>
+              <AdsTableView units={units} months={months} filterType={filterType} maxHeight='none' unitOrder={unitOrder} onReorder={handleReorder} />
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
 
       {/* Row 2: Type filter chips */}
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -882,8 +1213,8 @@ function AdsChart({ appKey }) {
         </div>
 
         {viewMode === 'chart'
-          ? <AdsHorizBarChart units={units} months={months} metricKey={metricKey} filterType={filterType} />
-          : <AdsTableView     units={units} months={months} filterType={filterType} />
+          ? <AdsHorizBarChart units={units} months={months} metricKey={metricKey} filterType={filterType} unitOrder={unitOrder} />
+          : <AdsTableView     units={units} months={months} filterType={filterType} unitOrder={unitOrder} onReorder={handleReorder} />
         }
       </>}
     </div>
@@ -1041,6 +1372,10 @@ function MonthTable({ sorted, activeTab }) {
   )
 }
 
+// ─── Priority colors (module-level, shared across components) ─────────────────
+const PRIORITY_COLOR_MAP = { 'low': '#94a3b8', 'normal': '#f59e0b', 'high': '#f97316', 'urgent': '#ef4444' }
+const getPriorityColor = (p) => PRIORITY_COLOR_MAP[(p || '').toLowerCase()] || '#94a3b8'
+
 // ─── Overview table (all apps) ────────────────────────────────────────────────
 function OverviewTable({ monetMap, apps, onSelectApp }) {
   const [sortKey, setSortKey] = useState('lastInstall')
@@ -1097,7 +1432,7 @@ function OverviewTable({ monetMap, apps, onSelectApp }) {
 
   if (!rows.length) return <p className="text-sm text-center py-16" style={{ color: '#94a3b8' }}>Chưa có dữ liệu Monet</p>
 
-  const PRIORITY_COLOR = { 'High': '#f43f5e', 'Medium': '#f59e0b', 'Low': '#94a3b8' }
+
 
   const SortIcon = ({ col }) => {
     if (sortKey !== col) return <span style={{ color: '#cbd5e1', marginLeft: 3, fontSize: 10 }}>↕</span>
@@ -1156,7 +1491,7 @@ function OverviewTable({ monetMap, apps, onSelectApp }) {
                 </td>
                 <td style={{ padding: '9px 12px' }}>
                   {r.priority ? (
-                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: `${PRIORITY_COLOR[r.priority] || '#94a3b8'}22`, color: PRIORITY_COLOR[r.priority] || '#94a3b8', fontWeight: 600 }}>
+                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: `${getPriorityColor(r.priority)}22`, color: getPriorityColor(r.priority), fontWeight: 600 }}>
                       {r.priority}
                     </span>
                   ) : <span style={{ color: '#94a3b8' }}>—</span>}
@@ -1285,10 +1620,9 @@ export default function Monet() {
     { key: 'install', label: 'Active User' },
     { key: 'cr',      label: 'Convert Rate' },
     { key: 'ads',     label: 'Ads' },
+    { key: 'engage',  label: 'Engagement' },
     { key: 'note',    label: 'Note' },
   ]
-
-  const PRIORITY_COLOR = { 'High': '#f43f5e', 'Medium': '#f59e0b', 'Low': '#94a3b8' }
 
   if (loading) return <div className="p-6 text-sm" style={{ color: '#94a3b8' }}>Đang tải...</div>
 
@@ -1393,89 +1727,94 @@ export default function Monet() {
           /* ── App detail view ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
-            {/* App header */}
-            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--color-border-secondary)', background: 'var(--color-background-primary)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: 10, background: dc, color: 'white', fontSize: 16, fontWeight: 700 }}>{isA ? 'A' : 'i'}</span>
-                <div>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>{selectedApp.alpId || selectedApp.hnId}</p>
-                  {selectedApp.hnId && selectedApp.alpId && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: 0 }}>{selectedApp.hnId}</p>}
+            {/* App header + stats — combined hero */}
+            <div style={{ background: 'var(--color-background-primary)', borderBottom: '1px solid var(--color-border-secondary)' }}>
+              {/* Top row: identity + actions */}
+              <div style={{ padding: '14px 20px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 12, background: dc, color: 'white', fontSize: 17, fontWeight: 700, flexShrink: 0 }}>{isA ? 'A' : 'i'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* Row 1: app name + status + platform */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>{selectedApp.alpId || selectedApp.hnId}</p>
+                    {selectedApp.status && (
+                      <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, background: selectedApp.status === 'RUNNING' ? 'rgba(34,197,94,0.12)' : 'rgba(148,163,184,0.12)', color: selectedApp.status === 'RUNNING' ? '#22c55e' : '#94a3b8', fontWeight: 600, letterSpacing: '0.02em' }}>
+                        {selectedApp.status}
+                      </span>
+                    )}
+                    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, background: `${dc}14`, color: dc, fontWeight: 600 }}>{isA ? 'Android' : 'iOS'}</span>
+                  </div>
+                  {/* Row 2: HN ID + store account + priority */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                    {selectedApp.hnId && selectedApp.alpId && (
+                      <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: 0 }}>{selectedApp.hnId}</p>
+                    )}
+                    {selectedApp.storeAccount && selectedApp.storeAccount !== '--' && (() => {
+                      const ACCOUNT_COLORS = ['#60a5fa','#34d399','#f472b6','#a78bfa','#fb923c','#2dd4bf','#facc15','#f87171']
+                      const acIdx = Math.abs([...selectedApp.storeAccount].reduce((h,c) => (h*31+c.charCodeAt(0))|0, 0)) % ACCOUNT_COLORS.length
+                      const acColor = ACCOUNT_COLORS[acIdx]
+                      return (
+                        <button onClick={() => setShowAccountPanel(true)}
+                          style={{ fontSize: 10, padding: '1px 7px', borderRadius: 20, background: `${acColor}14`, border: `1px solid ${acColor}30`, cursor: 'pointer', fontWeight: 500 }}
+                        >
+                          <span style={{ color: 'var(--color-text-secondary)', fontWeight: 400 }}>by </span>
+                          <span style={{ color: acColor, fontWeight: 600 }}>{selectedApp.storeAccount}</span>
+                        </button>
+                      )
+                    })()}
+                    {monetData?.priority && (
+                      <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 20, background: `${getPriorityColor(monetData.priority)}14`, color: getPriorityColor(monetData.priority), fontWeight: 600 }}>
+                        {monetData.priority}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                {selectedApp.status && (
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: selectedApp.status === 'RUNNING' ? 'rgba(34,197,94,0.12)' : 'rgba(148,163,184,0.12)', color: selectedApp.status === 'RUNNING' ? '#22c55e' : '#94a3b8', fontWeight: 600 }}>
-                    {selectedApp.status}
-                  </span>
-                )}
-                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: `${dc}18`, color: dc, fontWeight: 600 }}>{isA ? 'Android' : 'iOS'}</span>
-                {monetData?.priority && (
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: `${PRIORITY_COLOR[monetData.priority] || '#94a3b8'}18`, color: PRIORITY_COLOR[monetData.priority] || '#94a3b8', fontWeight: 600 }}>
-                    {monetData.priority}
-                  </span>
-                )}
-              </div>
-
-              {/* Store Account badge — clickable */}
-              {selectedApp.storeAccount && selectedApp.storeAccount !== '--' && (
-                <button
-                  onClick={() => setShowAccountPanel(true)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 8, background: 'var(--color-background-secondary)', border: '1px solid var(--color-border-secondary)', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}
+                <button onClick={() => setDetailApp(selectedApp)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 8, background: 'var(--color-background-secondary)', border: '1px solid var(--color-border-secondary)', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}
                   onMouseEnter={e => e.currentTarget.style.color = 'var(--color-text-primary)'}
                   onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-secondary)'}
-                >
-                  <span style={{ color: '#94a3b8', fontWeight: 400 }}>by</span> {selectedApp.storeAccount}
-                </button>
-              )}
+                >Chi tiết <span style={{ fontSize: 13 }}>→</span></button>
+              </div>
 
-              {/* Detail button */}
-              <button
-                onClick={() => setDetailApp(selectedApp)}
-                style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 8, background: 'var(--color-background-secondary)', border: '1px solid var(--color-border-secondary)', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}
-                onMouseEnter={e => e.currentTarget.style.color = 'var(--color-text-primary)'}
-                onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-secondary)'}
-              >
-                Chi tiết app <span style={{ fontSize: 14 }}>→</span>
-              </button>
+              {/* Stats row */}
+              {summary && (
+                <div style={{ display: 'flex', gap: 10, padding: '10px 16px', borderTop: '1px solid var(--color-border-secondary)', background: 'var(--color-background-secondary)' }}>
+                  {[
+                    { label: 'Active User',  value: fmtInstall(summary.latestInstall), sub: 'tháng gần nhất', color: '#2dd4bf' },
+                    { label: 'Avg AU',       value: fmtInstall(summary.avgInstall != null ? Math.round(summary.avgInstall) : null), sub: 'trung bình', color: '#60a5fa' },
+                    { label: 'CR',           value: fmtCR(summary.latestCR), sub: 'tháng gần nhất', color: '#fb923c' },
+                    { label: 'Avg CR',       value: fmtCR(summary.avgCR), sub: 'trung bình', color: '#a78bfa' },
+                    { label: 'Months',       value: String(summary.nMonths), sub: 'có data', color: '#94a3b8' },
+                  ].map((c) => (
+                    <div key={c.label} style={{ flex: 1, padding: '10px 14px', borderRadius: 10, background: 'var(--color-background-primary)', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>{c.label}</p>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: c.color, fontFamily: 'var(--font-mono)', margin: '0 0 2px' }}>{c.value}</p>
+                      <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: 0 }}>{c.sub}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Summary cards */}
-            {summary && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, padding: '16px 20px', borderBottom: '1px solid var(--color-border-secondary)', background: 'var(--color-background-secondary)' }}>
-                {[
-                  { label: 'Active User tháng gần nhất', value: fmtInstall(summary.latestInstall), color: '#2dd4bf' },
-                  { label: 'Trung bình Active User', value: fmtInstall(summary.avgInstall != null ? Math.round(summary.avgInstall) : null), color: '#60a5fa' },
-                  { label: 'CR tháng gần nhất', value: fmtCR(summary.latestCR), color: '#fb923c' },
-                  { label: 'Trung bình CR', value: fmtCR(summary.avgCR), color: '#a78bfa' },
-                  { label: 'Số tháng có data', value: String(summary.nMonths), color: '#94a3b8' },
-                ].map(c => (
-                  <div key={c.label} style={{ background: 'var(--color-background-primary)', borderRadius: 10, padding: '12px 14px', border: '1px solid var(--color-border-secondary)' }}>
-                    <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 4 }}>{c.label}</p>
-                    <p style={{ fontSize: 20, fontWeight: 700, color: c.color, fontFamily: 'var(--font-mono)' }}>{c.value}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border-secondary)', paddingLeft: 20, background: 'var(--color-background-primary)', flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 6, padding: '10px 16px', borderBottom: '1px solid var(--color-border-secondary)', background: 'var(--color-background-primary)', flexShrink: 0 }}>
               {TABS.map(t => (
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
                   style={{
-                    padding: '10px 18px',
+                    padding: '6px 16px',
                     fontSize: 13,
                     fontWeight: tab === t.key ? 600 : 400,
                     color: tab === t.key ? '#0d9488' : 'var(--color-text-secondary)',
-                    background: 'none',
-                    border: 'none',
-                    borderBottom: tab === t.key ? '2px solid #0d9488' : '2px solid transparent',
+                    background: tab === t.key ? 'transparent' : 'transparent',
+                    border: tab === t.key ? '2px solid #0d9488' : '2px solid #e2e8f0',
+                    borderRadius: 8,
                     cursor: 'pointer',
-                    transition: 'color 0.15s',
+                    transition: 'all 0.15s',
                     whiteSpace: 'nowrap',
                   }}
+                  onMouseEnter={e => { if (tab !== t.key) e.currentTarget.style.borderColor = '#94a3b8' }}
+                  onMouseLeave={e => { if (tab !== t.key) e.currentTarget.style.borderColor = '#e2e8f0' }}
                 >
                   {t.label}
                 </button>
@@ -1495,6 +1834,12 @@ export default function Monet() {
                   <>
                     <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>Ads requests theo tháng</p>
                     <AdsChart appKey={(selectedApp?.alpId || selectedApp?.hnId || '').toLowerCase()} />
+                  </>
+                )}
+                {tab === 'engage' && (
+                  <>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>Thời gian sử dụng trung bình</p>
+                    <EngageTab appKey={(selectedApp?.alpId || selectedApp?.hnId || '').toLowerCase()} />
                   </>
                 )}
                 {tab === 'cr' && (sorted.length === 0
@@ -1528,7 +1873,7 @@ export default function Monet() {
             </div>
 
             {/* Data table */}
-            {sorted.length > 0 && tab !== 'ads' && tab !== 'note' && (
+            {sorted.length > 0 && tab !== 'ads' && tab !== 'note' && tab !== 'engage' && (
               <div className="mx-4 md:mx-5 my-4 card" style={{ overflow: 'hidden' }}>
                 <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border-secondary)' }}>
                   <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-secondary)' }}>Chi tiết theo tháng</p>

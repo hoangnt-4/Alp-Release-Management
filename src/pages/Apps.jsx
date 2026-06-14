@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { useLocation } from 'react-router-dom'
 import AppDetailModal from '../components/AppDetailModal'
@@ -68,6 +69,101 @@ function MiniTimeline({ tl }) {
   )
 }
 
+function MultiSelectDropdown({ label, options, selected, setSelected }) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef(null)
+  const toggle = (v) => setSelected(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
+  const rect = btnRef.current?.getBoundingClientRect()
+  const displayLabel = selected.length === 0 ? label : `${label} (${selected.length})`
+  return (
+    <div className="shrink-0" ref={btnRef}>
+      <button
+        className="input text-xs py-1 px-2 flex items-center gap-1"
+        style={{ width: 120, justifyContent: 'space-between', background: selected.length ? '#f0fdf4' : '', borderColor: selected.length ? '#0d9488' : '', color: selected.length ? '#0d9488' : '' }}
+        onClick={() => setOpen(v => !v)}
+      >
+        <span>{displayLabel}</span><span style={{ fontSize: 10 }}>▾</span>
+      </button>
+      {open && ReactDOM.createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'fixed', top: (rect?.bottom ?? 0) + 4, left: rect?.left ?? 0, zIndex: 9999, background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', minWidth: 160, overflow: 'hidden' }}>
+            {options.map(({ value, label: optLabel }) => (
+              <label key={value} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer', fontSize: 12, color: '#1e293b' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = ''}>
+                <input type="checkbox" checked={selected.includes(value)} onChange={() => toggle(value)} style={{ accentColor: '#0d9488' }} />
+                {optLabel}
+              </label>
+            ))}
+            {selected.length > 0 && (
+              <div style={{ padding: '8px 12px', borderTop: '1px solid #f1f5f9' }}>
+                <button style={{ fontSize: 11, color: '#ef4444' }} onClick={() => { setSelected([]); setOpen(false) }}>Xoá chọn</button>
+              </div>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+function ConfigNotiDropdown({ filterConfigNoti, setFilterConfigNoti, configOpts, showOpts, localNotiOpts }) {
+  const [open, setOpen] = useState(false)
+  const btnRef = useRef(null)
+  const toggle = (type, value) => setFilterConfigNoti(prev => {
+    const exists = prev.some(f => f.type === type && f.value === value)
+    return exists ? prev.filter(f => !(f.type === type && f.value === value)) : [...prev, { type, value }]
+  })
+  const isChecked = (type, value) => filterConfigNoti.some(f => f.type === type && f.value === value)
+  const groups = [
+    { label: 'Config Intro', type: 'config', opts: configOpts },
+    { label: 'Show Intro',   type: 'show',   opts: showOpts },
+    { label: 'Local Noti',   type: 'noti',   opts: localNotiOpts },
+  ]
+  const label = filterConfigNoti.length === 0 ? 'Config & Noti' : `Config & Noti (${filterConfigNoti.length})`
+  const rect = btnRef.current?.getBoundingClientRect()
+  return (
+    <div className="shrink-0" ref={btnRef}>
+      <button
+        className="input text-xs py-1 px-2 flex items-center gap-1"
+        style={{ width: 148, justifyContent: 'space-between', background: filterConfigNoti.length ? '#f0fdf4' : '', borderColor: filterConfigNoti.length ? '#0d9488' : '', color: filterConfigNoti.length ? '#0d9488' : '' }}
+        onClick={() => setOpen(v => !v)}
+      >
+        <span>{label}</span><span style={{ fontSize: 10 }}>▾</span>
+      </button>
+      {open && ReactDOM.createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'fixed', top: (rect?.bottom ?? 0) + 4, left: rect?.left ?? 0, zIndex: 9999, background: 'white', borderRadius: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', minWidth: 200, overflow: 'hidden' }}>
+            {groups.map(g => (
+              <div key={g.label}>
+                <div style={{ padding: '6px 12px', fontSize: 10, fontWeight: 700, background: '#f8fafc', color: '#94a3b8', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{g.label}</div>
+                {g.opts.map(v => (
+                  <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer', fontSize: 12, color: '#1e293b' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={e => e.currentTarget.style.background = ''}>
+                    <input type="checkbox" checked={isChecked(g.type, v)} onChange={() => toggle(g.type, v)} style={{ accentColor: '#0d9488' }} />
+                    {v}
+                  </label>
+                ))}
+              </div>
+            ))}
+            <div style={{ padding: '8px 12px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>{filterConfigNoti.length} đã chọn</span>
+              {filterConfigNoti.length > 0 && (
+                <button style={{ fontSize: 11, color: '#ef4444' }} onClick={() => { setFilterConfigNoti([]); setOpen(false) }}>Xoá chọn</button>
+              )}
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  )
+}
+
 export default function Apps() {
   const { apps, timelines, activities, monet, loading } = useReleasesStore()
   const location = useLocation()
@@ -79,10 +175,13 @@ export default function Apps() {
   const [filterStatus, setFilterStatus]     = useState(urlStatus)
   const [filterRequest, setFilterRequest]   = useState(false)
   const [filterCrash, setFilterCrash]       = useState(false)
-  const [filterShow, setFilterShow]         = useState('')
-  const [filterConfig, setFilterConfig]     = useState('')
-  const [filterLocalNoti, setFilterLocalNoti] = useState('')
-  const [filterIap, setFilterIap]           = useState('')
+  const [filterConfigNoti, setFilterConfigNoti] = useState([]) // [{type:'show'|'config'|'noti', value}]
+  const [filterIap, setFilterIap]               = useState('')
+  const [filterFlag, setFilterFlag]             = useState([])
+  // compat aliases (keep filter logic working)
+  const filterShow      = ''
+  const filterConfig    = ''
+  const filterLocalNoti = ''
 
   // Sync filterStatus when URL changes (sidebar sub-tab click)
   useEffect(() => { setFilterStatus(urlStatus) }, [urlStatus])
@@ -127,17 +226,26 @@ export default function Apps() {
         const act = activities[a.hnId?.toLowerCase()] || activities[a.alpId?.toLowerCase()]
         if (!act?.fixCrashes) return false
       }
-      if (filterShow || filterConfig || filterLocalNoti || filterIap !== '') {
+      if (filterConfigNoti.length > 0 || filterIap !== '') {
         const act = activities[a.hnId?.toLowerCase()] || activities[a.alpId?.toLowerCase()]
-        if (filterShow      && (act?.show      || '') !== filterShow)      return false
-        if (filterConfig    && (act?.config    || '') !== filterConfig)    return false
-        if (filterLocalNoti && (act?.localNoti || '') !== filterLocalNoti) return false
+        if (filterConfigNoti.length > 0) {
+          // must match at least one selected item per type group (OR within group, AND across groups)
+          const showSel   = filterConfigNoti.filter(f => f.type === 'show')
+          const configSel = filterConfigNoti.filter(f => f.type === 'config')
+          const notiSel   = filterConfigNoti.filter(f => f.type === 'noti')
+          if (showSel.length   > 0 && !showSel.some(f   => (act?.show      || '') === f.value)) return false
+          if (configSel.length > 0 && !configSel.some(f => (act?.config    || '') === f.value)) return false
+          if (notiSel.length   > 0 && !notiSel.some(f   => (act?.localNoti || '') === f.value)) return false
+        }
         if (filterIap === 'live' && !act?.iap)  return false
         if (filterIap === 'no'   &&  act?.iap)  return false
       }
+      if (filterFlag.includes('ad2')     && !a.ad2)          return false
+      if (filterFlag.includes('noMedia') && !a.nativeNoMedia) return false
+      if (filterFlag.includes('freezed') && !a.freezed)       return false
       return true
     })
-  }, [apps, search, filterPlatform, filterTimeline, filterStatus, filterRequest, filterCrash, filterShow, filterConfig, filterLocalNoti, filterIap, timelines, activities])
+  }, [apps, search, filterPlatform, filterTimeline, filterStatus, filterRequest, filterCrash, filterConfigNoti, filterIap, filterFlag, timelines, activities])
 
   // Unique option values from activities
   const actList = useMemo(() => Object.values(activities), [activities])
@@ -215,14 +323,22 @@ export default function Apps() {
           <option value="UNPUBLISHED">UNPUBLISHED</option>
           <option value="ABANDONED">ABANDONED</option>
         </select>
-        <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 116 }} value={filterShow} onChange={e => setFilterShow(e.target.value)}>
-          <option value="">Show Intro</option>
-          {showOpts.map(v => <option key={v} value={v}>{v}</option>)}
-        </select>
-        <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 116 }} value={filterLocalNoti} onChange={e => setFilterLocalNoti(e.target.value)}>
-          <option value="">Local Noti</option>
-          {localNotiOpts.map(v => <option key={v} value={v}>{v}</option>)}
-        </select>
+        {/* Config & Noti multi-select */}
+        <ConfigNotiDropdown
+          filterConfigNoti={filterConfigNoti}
+          setFilterConfigNoti={setFilterConfigNoti}
+          configOpts={configOpts}
+          showOpts={showOpts}
+          localNotiOpts={localNotiOpts}
+        />
+        {/* Flags */}
+        <MultiSelectDropdown
+          label="Flags"
+          options={[{ value: 'ad2', label: 'Ad 2' }, { value: 'noMedia', label: 'Native no media' }, { value: 'freezed', label: 'Freezed' }]}
+          selected={filterFlag}
+          setSelected={setFilterFlag}
+        />
+        {/* iAP */}
         <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 80 }} value={filterIap} onChange={e => setFilterIap(e.target.value)}>
           <option value="">iAP</option>
           <option value="live">Live</option>
@@ -238,11 +354,11 @@ export default function Apps() {
           style={filterCrash ? { background: '#fee2e2', color: '#dc2626', borderColor: '#fca5a5' } : { borderColor: '#e2e8f0', color: '#64748b' }}
           onClick={() => setFilterCrash(v => !v)}
         >🔴 Crash</button>
-        {(search || filterPlatform || filterTimeline || filterStatus || filterRequest || filterCrash || filterShow || filterConfig || filterLocalNoti || filterIap) && (
+        {(search || filterPlatform || filterTimeline || filterStatus || filterRequest || filterCrash || filterConfigNoti.length || filterIap || filterFlag.length) && (
           <button
             className="text-xs px-2 py-1 rounded-lg border border-surface-200 hover:bg-surface-100 shrink-0 whitespace-nowrap"
             style={{ color: '#64748b' }}
-            onClick={() => { setSearch(''); setFilterPlatform(''); setFilterTimeline(''); setFilterStatus(''); setFilterRequest(false); setFilterCrash(false); setFilterShow(''); setFilterConfig(''); setFilterLocalNoti(''); setFilterIap('') }}
+            onClick={() => { setSearch(''); setFilterPlatform(''); setFilterTimeline(''); setFilterStatus(''); setFilterRequest(false); setFilterCrash(false); setFilterConfigNoti([]); setFilterIap(''); setFilterFlag([]) }}
           >Xoá filter</button>
         )}
       </div>
@@ -297,9 +413,14 @@ export default function Apps() {
                     <td className="px-4 py-3 font-mono text-xs w-10" style={{ color: '#94a3b8' }}>{i + 1}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                          style={{ background: platform.toLowerCase().includes('android') ? '#34a853' : '#007aff' }}>
-                          {platform.toLowerCase().includes('android') ? 'A' : 'i'}
+                        <div className="relative w-7 h-7 shrink-0">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold"
+                            style={{ background: platform.toLowerCase().includes('android') ? '#34a853' : '#007aff', opacity: a.freezed ? 0.45 : 1 }}>
+                            {platform.toLowerCase().includes('android') ? 'A' : 'i'}
+                          </div>
+                          {a.freezed && (
+                            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, lineHeight: 1 }}>🧊</span>
+                          )}
                         </div>
                         <div className="flex flex-col min-w-0">
                           <span className="font-medium text-xs" style={{ color: '#1e293b' }}>
@@ -319,6 +440,10 @@ export default function Apps() {
                         {act?.requestUpdate && (
                           <span className="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
                             style={{ background: '#fef3c7', color: '#d97706' }}>⚡ Request</span>
+                        )}
+                        {a.freezed && (
+                          <span className="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
+                            style={{ background: '#eff6ff', color: '#3b82f6' }}>🧊 Freezed</span>
                         )}
                       </div>
                     </td>

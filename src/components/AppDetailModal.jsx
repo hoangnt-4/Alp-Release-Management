@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { updateActivity, updateRelease, deleteRelease } from '../lib/lark'
+import { getActivities, updateActivity, updateRelease, deleteRelease } from '../lib/lark'
 import { addEvent } from '../lib/activityHistory'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { PlatformBadge, RolloutBadge } from '../pages/Dashboard'
@@ -81,10 +81,14 @@ function SelectBadge({ value }) {
   )
 }
 
-function IapBadge({ value }) {
+function IapBadge({ value, isIos }) {
   if (value) return (
     <span className="text-xs px-2 py-0.5 rounded-full font-medium"
       style={{ background: '#d1fae5', color: '#065f46' }}>Live</span>
+  )
+  if (isIos) return (
+    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+      style={{ background: '#fee2e2', color: '#dc2626' }}>No</span>
   )
   return (
     <span className="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -212,7 +216,7 @@ function LinkRequestsBlock({ activity, saving, onSaveLink, initCount }) {
   return (
     <div className="rounded-xl border border-surface-100 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-surface-100">
-        <p className="text-xs font-medium" style={{ color: '#64748b' }}>Nội dung request</p>
+        <p className="text-xs font-medium" style={{ color: '#64748b' }}>Request Update</p>
         {count < LINK_FIELDS.length && (
           <button
             onClick={() => setCount(c => c + 1)}
@@ -316,69 +320,88 @@ function ActivitiesTab({ app, initialActivity, timeline, latestRelease }) {
   if (!activity) return <p className="text-xs text-center py-10" style={{ color: '#94a3b8' }}>Chưa có dữ liệu Activities</p>
 
   return (
-    <div className="space-y-3 p-5">
-      {/* Feature status */}
-      <div className="rounded-xl border border-surface-100 overflow-hidden">
+    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      {/* ── Card 1: Feature status ── */}
+      <div style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Config</p>
+        </div>
         {[
           { label: 'Show Intro',  value: activity.show,      type: 'select' },
-          { label: 'Config Show', value: activity.config,    type: 'select' },
+          { label: 'Config Intro', value: activity.config,    type: 'select' },
           { label: 'Local Noti',  value: activity.localNoti, type: 'noti'   },
           { label: 'iAP',         value: activity.iap || !!timeline?.liveIap, type: 'iap' },
         ].map(({ label, value, type }) => (
-          <div key={label} className="flex items-center justify-between px-4 py-3 border-b border-surface-100 last:border-0">
-            <span className="text-xs font-medium" style={{ color: '#64748b' }}>{label}</span>
-            {type === 'noti' ? <LocalNotiBadge value={value} /> : type === 'iap' ? <IapBadge value={value} /> : <SelectBadge value={value} />}
+          <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #f8fafc' }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: '#475569' }}>{label}</span>
+            {type === 'noti' ? <LocalNotiBadge value={value} /> : type === 'iap' ? <IapBadge value={value} isIos={!(app.platform || '').toLowerCase().includes('android')} /> : <SelectBadge value={value} />}
           </div>
         ))}
       </div>
 
-      {/* Fix Crashes toggle */}
-      <div className="rounded-xl border border-surface-100 px-4 py-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium" style={{ color: '#1e293b' }}>Fix Crashes</p>
-          {activity.fixCrashes && (
-            <p className="text-xs mt-0.5 font-medium" style={{ color: '#ef4444' }}>🔴 Đang có crash cần fix</p>
-          )}
+      {/* ── Card 2: App flags ── */}
+      <div style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Flags</p>
         </div>
-        <button
-          onClick={handleToggleFixCrashes}
-          disabled={saving}
-          className="relative w-10 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50"
-          style={{ background: activity.fixCrashes ? '#ef4444' : '#e2e8f0' }}
-        >
-          <span className="absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all"
-            style={{ left: activity.fixCrashes ? '22px' : '2px' }} />
-        </button>
+        {[
+          { label: 'Ad 2',            value: app.ad2,           color: '#6366f1', subtle: false },
+          { label: 'Native no media', value: app.nativeNoMedia, color: '#f59e0b', subtle: false },
+          { label: 'Freezed',         value: app.freezed,       color: '#ef4444', subtle: true  },
+        ].map(({ label, value, color, subtle }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #f8fafc' }}>
+            <span style={{ fontSize: 12, fontWeight: 500, color: '#475569' }}>{label}</span>
+            {value
+              ? <span style={{ fontSize: 11, padding: '3px 12px', borderRadius: 20, background: '#dcfce7', color: '#16a34a', fontWeight: 600 }}>Yes</span>
+              : subtle
+                ? <span style={{ fontSize: 11, padding: '3px 12px', borderRadius: 20, background: '#f1f5f9', color: '#cbd5e1', fontWeight: 400 }}>No</span>
+                : <span style={{ fontSize: 11, padding: '3px 12px', borderRadius: 20, background: '#fee2e2', color: '#dc2626', fontWeight: 500 }}>No</span>
+            }
+          </div>
+        ))}
       </div>
 
-      {/* Request Update toggle */}
-      <div className="rounded-xl border border-surface-100 px-4 py-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium" style={{ color: '#1e293b' }}>Request Update</p>
-          {activity.requestUpdate && (() => {
-            const days = activity.lastedRequest
-              ? Math.round((Date.now() - new Date(activity.lastedRequest)) / 86400000)
-              : null
-            return (
-              <p className="text-xs mt-0.5 font-medium" style={{ color: '#f59e0b' }}>
-                ⚡ Đang có request update
-                {days !== null && <span className="ml-1.5 px-1.5 py-0.5 rounded text-xs font-semibold" style={{ background: '#fef3c7', color: '#b45309' }}>{days} ngày trước</span>}
-              </p>
-            )
-          })()}
+      {/* ── Card 3: Toggles ── */}
+      <div style={{ borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+        <div style={{ padding: '8px 16px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Status</p>
         </div>
-        <button
-          onClick={handleToggleRequest}
-          disabled={saving}
-          className="relative w-10 h-6 rounded-full transition-colors shrink-0 disabled:opacity-50"
-          style={{ background: activity.requestUpdate ? '#0d9488' : '#e2e8f0' }}
-        >
-          <span className="absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all"
-            style={{ left: activity.requestUpdate ? '22px' : '2px' }} />
-        </button>
+
+        {/* Fix Crashes */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #f8fafc', gap: 12 }}>
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 500, color: '#475569', margin: 0 }}>Fix Crashes</p>
+            {activity.fixCrashes && <p style={{ fontSize: 11, color: '#ef4444', margin: '2px 0 0', fontWeight: 500 }}>🔴 Đang có crash cần fix</p>}
+          </div>
+          <button onClick={handleToggleFixCrashes} disabled={saving}
+            style={{ position: 'relative', width: 40, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', flexShrink: 0, opacity: saving ? 0.5 : 1, background: activity.fixCrashes ? '#ef4444' : '#e2e8f0', transition: 'background 0.2s' }}>
+            <span style={{ position: 'absolute', top: 3, width: 18, height: 18, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s', left: activity.fixCrashes ? 19 : 3 }} />
+          </button>
+        </div>
+
+        {/* Request Update */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', gap: 12 }}>
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 500, color: '#475569', margin: 0 }}>Request Update</p>
+            {activity.requestUpdate && (() => {
+              const days = activity.lastedRequest ? Math.round((Date.now() - new Date(activity.lastedRequest)) / 86400000) : null
+              return (
+                <p style={{ fontSize: 11, color: '#f59e0b', margin: '2px 0 0', fontWeight: 500 }}>
+                  ⚡ Đang có request update
+                  {days !== null && <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 6, background: '#fef3c7', color: '#b45309', fontSize: 10, fontWeight: 600 }}>{days} ngày trước</span>}
+                </p>
+              )
+            })()}
+          </div>
+          <button onClick={handleToggleRequest} disabled={saving}
+            style={{ position: 'relative', width: 40, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', flexShrink: 0, opacity: saving ? 0.5 : 1, background: activity.requestUpdate ? '#0d9488' : '#e2e8f0', transition: 'background 0.2s' }}>
+            <span style={{ position: 'absolute', top: 3, width: 18, height: 18, borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s', left: activity.requestUpdate ? 19 : 3 }} />
+          </button>
+        </div>
       </div>
 
-      {/* Link Requests */}
+      {/* ── Link Requests ── */}
       {(() => {
         const initCount = Math.max(1, LINK_FIELDS.reduce((acc, f, i) => activity[f] ? i + 1 : acc, 1))
         return <LinkRequestsBlock activity={activity} saving={saving} onSaveLink={handleSaveLink} initCount={initCount} />
@@ -704,9 +727,14 @@ export default function AppDetailModal({ app, onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0"
-              style={{ background: '#0d9488' }}>
-              {(app.alpId || '?')[0].toUpperCase()}
+            <div className="relative w-10 h-10 shrink-0">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold"
+                style={{ background: '#0d9488', opacity: app.freezed ? 0.45 : 1 }}>
+                {(app.alpId || '?')[0].toUpperCase()}
+              </div>
+              {app.freezed && (
+                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🧊</span>
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">

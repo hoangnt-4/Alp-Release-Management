@@ -99,6 +99,9 @@ export function mapApp(record) {
     localNotiScript:    larkText(f['Local Noti Script']),
     localNotiScriptUrl: larkUrl(f['Local Noti Script']),
     storeAccount:       larkText(f['Store Account']),
+    ad2:                f['Ad 2'] === true || f['Ad 2'] === 1,
+    nativeNoMedia:      f['Native no media'] === true || f['Native no media'] === 1,
+    freezed:            f['Freezed'] === true || f['Freezed'] === 1,
   }
 }
 

@@ -99,6 +99,44 @@ export async function deleteAdsByAppKey(appKey, months) {
   }
 }
 
+// ── Engagement helpers ────────────────────────────────────────────────────────
+export async function getEngagement(appKey) {
+  const rows = await rpc(
+    `engagement_metrics?app_key=eq.${encodeURIComponent(appKey)}&select=month,avg_seconds&order=month.asc`,
+    { headers: headers() },
+  )
+  return rows // [{ month, avg_seconds }]
+}
+
+export async function upsertEngagement(appKey, entries) {
+  // entries: [{ month, avg_seconds }]
+  if (!entries.length) return
+  const rows = entries.map(e => ({ app_key: appKey, month: e.month, avg_seconds: e.avg_seconds }))
+  await rpc(
+    `engagement_metrics?on_conflict=app_key,month`,
+    {
+      method:  'POST',
+      headers: headers({ 'Prefer': 'return=minimal,resolution=merge-duplicates' }),
+      body:    JSON.stringify(rows),
+    },
+  )
+}
+
+export async function deleteEngagement(appKey, months) {
+  if (months && months.length) {
+    const monthFilter = months.map(m => `"${m}"`).join(',')
+    await rpc(
+      `engagement_metrics?app_key=eq.${encodeURIComponent(appKey)}&month=in.(${monthFilter})`,
+      { method: 'DELETE', headers: headers({ 'Prefer': 'return=minimal' }) },
+    )
+  } else {
+    await rpc(
+      `engagement_metrics?app_key=eq.${encodeURIComponent(appKey)}`,
+      { method: 'DELETE', headers: headers({ 'Prefer': 'return=minimal' }) },
+    )
+  }
+}
+
 // ── Write ─────────────────────────────────────────────────────────────────────
 // units: [{ name, type, data: { [month]: { requests, matchRate, ... } } }]
 export async function upsertAds(appKey, units) {
