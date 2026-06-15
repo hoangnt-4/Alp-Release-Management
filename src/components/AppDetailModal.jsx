@@ -245,18 +245,31 @@ function ActivitiesTab({ app, initialActivity, timeline, latestRelease }) {
   const [loading, setLoading]   = useState(!initialActivity)
   const [saving, setSaving]     = useState(false)
 
-  // Auto turn off toggles if latest release note already addresses them
+  // Helpers to persist crash-on date in localStorage (no Lark field needed)
+  const crashDateKey = activity?.id ? `fixCrashDate_${activity.id}` : null
+  const getCrashDate = () => (crashDateKey ? localStorage.getItem(crashDateKey) || '' : '')
+  const setCrashDate = (d) => { if (crashDateKey) { if (d) localStorage.setItem(crashDateKey, d); else localStorage.removeItem(crashDateKey) } }
+
+  // Auto turn off toggles only if the latest release note covers the request date
   useEffect(() => {
-    if (!activity || !latestRelease?.releaseNote) return
-    const note = latestRelease.releaseNote.toLowerCase()
+    if (!activity || !latestRelease?.releaseNote || !latestRelease?.releaseDate) return
+    const note        = latestRelease.releaseNote.toLowerCase()
+    const releaseDate = latestRelease.releaseDate   // "YYYY-MM-DD"
+    const reqDate     = activity.lastedRequest || '' // "YYYY-MM-DD" or ''
+    const crashDate   = getCrashDate()              // "YYYY-MM-DD" or ''
     const patch = {}
-    if (activity.fixCrashes   && (note.includes('fix crash') || note.includes('fix bug')))      patch.fixCrashes   = false
-    if (activity.requestUpdate && (note.includes('update request') || note.includes('request update'))) patch.requestUpdate = false
+    if (activity.fixCrashes   && (!crashDate || releaseDate >= crashDate) && (note.includes('fix crash') || note.includes('fix bug'))) {
+      patch.fixCrashes = false
+      setCrashDate(null)
+    }
+    if (activity.requestUpdate && (!reqDate || releaseDate >= reqDate) && (note.includes('update request') || note.includes('request update')))
+      patch.requestUpdate = false
     if (Object.keys(patch).length === 0) return
     updateActivity(activity.id, patch)
       .then(() => setActivity(a => ({ ...a, ...patch })))
       .catch(() => {})
-  }, [latestRelease?.id, activity?.fixCrashes, activity?.requestUpdate])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestRelease?.id])   // only re-run when the latest release changes, NOT on toggle
 
   useEffect(() => {
     if (initialActivity !== undefined) {
@@ -283,6 +296,8 @@ function ActivitiesTab({ app, initialActivity, timeline, latestRelease }) {
     try {
       const newVal = !activity.fixCrashes
       await updateActivity(activity.id, { fixCrashes: newVal })
+      // Track date when crash is turned ON (used for auto-off date guard)
+      setCrashDate(newVal ? new Date().toISOString().slice(0, 10) : null)
       setActivity(a => ({ ...a, fixCrashes: newVal }))
     } finally { setSaving(false) }
   }
