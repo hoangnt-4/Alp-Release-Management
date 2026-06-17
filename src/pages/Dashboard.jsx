@@ -222,6 +222,9 @@ export default function Dashboard() {
                     {r.reviewNotes
                       ? <span className="text-xs" style={{ color: '#64748b' }} title={r.reviewNotes}>{r.reviewNotes.length > 40 ? r.reviewNotes.slice(0, 40) + '…' : r.reviewNotes}</span>
                       : <span className="text-xs" style={{ color: '#cbd5e1' }}>—</span>}
+                    {r.lastCheckedDate && (
+                      <p className="mt-0.5 font-mono" style={{ fontSize: 10, color: '#cbd5e1' }}>{r.lastCheckedDate}</p>
+                    )}
                   </td>
                   <td className="px-3 py-2.5">
                     <button onClick={() => toggleWatchlist(r.id)}

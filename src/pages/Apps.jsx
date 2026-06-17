@@ -204,8 +204,12 @@ export default function Apps() {
         if (!p.toLowerCase().includes(filterPlatform.toLowerCase())) return false
       }
       if (filterStatus) {
-        const s = (a.status || '').toUpperCase()
-        if (s !== filterStatus.toUpperCase()) return false
+        if (filterStatus === '__empty__') {
+          if (a.status) return false
+        } else {
+          const s = (a.status || '').toUpperCase()
+          if (s !== filterStatus.toUpperCase()) return false
+        }
       }
       if (filterTimeline) {
         const tl = timelines[a.hnId?.toLowerCase()] || timelines[a.alpId?.toLowerCase()]
@@ -313,6 +317,7 @@ export default function Apps() {
         </select>
         <select className="input text-xs py-1 px-2 shrink-0" style={{ width: 130 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
           <option value="">Tất cả status</option>
+          <option value="__empty__">— Chưa có</option>
           <option value="NEW">NEW</option>
           <option value="UI FIGMA">UI FIGMA</option>
           <option value="WAIT ASSIGN">WAIT ASSIGN</option>

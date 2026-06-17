@@ -140,7 +140,10 @@ export default function History() {
   const filtered = useMemo(() => {
     const q = filter.search.toLowerCase()
 return releases.filter(r => {
-      if (filter.status   && r.status !== filter.status) return false
+      if (filter.status) {
+        if (filter.status === '__empty__') { if (r.status) return false }
+        else if (r.status !== filter.status) return false
+      }
       if (filter.platform && !r.platform?.toLowerCase().includes(filter.platform.toLowerCase())) return false
       if (filter.rollout  && r.rollout !== filter.rollout) return false
       if (filter.dateFrom && r.releaseDate && r.releaseDate < filter.dateFrom) return false
@@ -204,6 +207,7 @@ return releases.filter(r => {
         <input className="input w-48 text-xs py-1.5" placeholder="Tìm app, version, mô tả..." value={filter.search} onChange={e => setF('search', e.target.value)} />
         <select className="input w-36 text-xs py-1.5" value={filter.status} onChange={e => setF('status', e.target.value)}>
           <option value="">Tất cả status</option>
+          <option value="__empty__">— Chưa có</option>
           {STATUS_OPTS.filter(Boolean).map(s => <option key={s}>{s}</option>)}
         </select>
         <select className="input w-36 text-xs py-1.5" value={filter.platform} onChange={e => setF('platform', e.target.value)}>
@@ -297,6 +301,9 @@ return releases.filter(r => {
                       ? <span className="text-xs" style={{ color: '#64748b' }} title={r.reviewNotes}>{r.reviewNotes.length > 50 ? r.reviewNotes.slice(0, 50) + '…' : r.reviewNotes}</span>
                       : <span className="text-xs" style={{ color: '#cbd5e1' }}>—</span>
                     }
+                    {r.lastCheckedDate && (
+                      <p className="mt-0.5 font-mono" style={{ fontSize: 10, color: '#cbd5e1' }}>{r.lastCheckedDate}</p>
+                    )}
                   </td>
                   <td className="px-3 py-2.5">
                     <button
