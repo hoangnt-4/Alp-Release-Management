@@ -97,23 +97,45 @@ function SidebarContent({ account, apps, monet = {}, onClose, onSelectApp }) {
             const sc = STATUS_COLOR[a.status] || '#94a3b8'
             return (
               <div key={a.id}
-                onClick={() => { onSelectApp?.(a); onClose() }}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', cursor: onSelectApp ? 'pointer' : 'default' }}
-                onMouseEnter={e => { if (onSelectApp) e.currentTarget.style.background = '#f8fafc' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', cursor: 'default', borderBottom: '1px solid #f1f5f9' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
                 onMouseLeave={e => e.currentTarget.style.background = ''}
               >
+                {/* Platform icon */}
                 <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, background: adc, color: 'white', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>{aIsA ? 'A' : 'i'}</span>
+
+                {/* Name + ID */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.alpId || a.hnId}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
+                    {/* App name — opens detail modal */}
+                    <button onClick={() => { onSelectApp?.(a); onClose() }}
+                      style={{ fontSize: 13, fontWeight: 500, color: '#0f172a', background: 'none', border: 'none', padding: 0, cursor: onSelectApp ? 'pointer' : 'default', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}
+                      onMouseEnter={e => { if (onSelectApp) e.currentTarget.style.color = '#0d9488' }}
+                      onMouseLeave={e => e.currentTarget.style.color = '#0f172a'}>
+                      {a.alpId || a.hnId}
+                    </button>
                     {hasMonetData(a) && (
-                      <span title="Có dữ liệu Monet" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, padding: '1px 6px', borderRadius: 10, background: '#eff6ff', color: '#3b82f6', fontWeight: 600, flexShrink: 0, border: '1px solid #bfdbfe' }}>◈ Monet</span>
+                      <span title="Có dữ liệu Monet" style={{ fontSize: 10, padding: '1px 5px', borderRadius: 8, background: '#eff6ff', color: '#3b82f6', fontWeight: 600, flexShrink: 0, border: '1px solid #bfdbfe', whiteSpace: 'nowrap' }}>◈ M</span>
                     )}
                   </div>
-                  <p style={{ fontSize: 11, color: '#64748b', margin: 0 }}>{a.hnId}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8', fontFamily: 'monospace' }}>{a.hnId}</span>
+                    {/* Store link */}
+                    {a.appLinkUrl && (
+                      <a href={a.appLinkUrl} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 11, color: '#0d9488', textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 2 }}
+                        onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                        onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+                        onClick={e => e.stopPropagation()}>
+                        Store ↗
+                      </a>
+                    )}
+                  </div>
                 </div>
+
+                {/* Status badge */}
                 {a.status && (
-                  <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, background: `${sc}15`, color: sc, fontWeight: 600, flexShrink: 0 }}>{a.status}</span>
+                  <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, background: `${sc}15`, color: sc, fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap' }}>{a.status}</span>
                 )}
               </div>
             )

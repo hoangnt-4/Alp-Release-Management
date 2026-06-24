@@ -24,3 +24,8 @@ const VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0'
 export const FEATURES = {
   monet: semverGte(VERSION, '1.0.1'),
 }
+
+// Shared constants
+export const REVIEWER_OPTIONS  = ['Hieu', 'Hoa Nguyen', 'Tuan Hoang']
+export const DEFAULT_REVIEWER  = 'Hieu'
+export const DEFAULT_STATUS    = 'Checked'

@@ -7,6 +7,7 @@ import AppCombobox from '../components/AppCombobox'
 import ImportModal from '../components/ImportModal'
 import AppDetailModal from '../components/AppDetailModal'
 import { PlatformBadge, RolloutBadge } from './Dashboard'
+import { REVIEWER_OPTIONS, DEFAULT_REVIEWER, DEFAULT_STATUS } from '../lib/features'
 import clsx from 'clsx'
 
 const STATUS_OPTS = ['', 'Checked', 'Updated', 'Pending Review', 'Checking', 'New']
@@ -32,8 +33,24 @@ export default function History() {
   const [perPage, setPerPage] = useState(25)
 
   const [reviewModal, setReviewModal] = useState(null)
-  const [reviewForm, setReviewForm]   = useState({ status: '', reviewNotes: '', lastCheckedDate: '', reviewer: 'Hieu' })
+  const [reviewForm, setReviewForm]   = useState({ status: '', reviewNotes: '', lastCheckedDate: '', reviewer: DEFAULT_REVIEWER })
   const [saving, setSaving]           = useState(false)
+
+  // Inline note editing (same as Dashboard)
+  const [editingNote, setEditingNote] = useState(null)
+  const [noteValue,   setNoteValue]   = useState('')
+  const startEditNote = (r) => { setEditingNote(r.id); setNoteValue(r.reviewNotes || '') }
+  const saveNote = async (r) => {
+    if (noteValue === (r.reviewNotes || '')) { setEditingNote(null); return }
+    const today = new Date().toISOString().slice(0, 10)
+    const patch = {
+      reviewNotes: noteValue,
+      ...(!r.status          ? { status: DEFAULT_STATUS }    : {}),
+      ...(!r.lastCheckedDate ? { lastCheckedDate: today }     : {}),
+      ...(!r.reviewer        ? { reviewer: DEFAULT_REVIEWER } : {}),
+    }
+    await updateRelease(r.id, patch); setEditingNote(null); refresh()
+  }
 
   const [addModal, setAddModal]       = useState(false)
   const [addForm, setAddForm]         = useState(emptyForm())
@@ -165,7 +182,7 @@ return releases.filter(r => {
   const SortIcon = ({ k }) => sort.key === k ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''
 
   const openReview = (r) => {
-    setReviewForm({ status: r.status || 'Checked', reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10), reviewer: r.reviewer || 'Hieu' })
+    setReviewForm({ status: r.status || DEFAULT_STATUS, reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10), reviewer: r.reviewer || DEFAULT_REVIEWER })
     setReviewModal(r)
   }
 
@@ -261,61 +278,76 @@ return releases.filter(r => {
                 <tr><td colSpan={11} className="px-3 py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Đang tải...</td></tr>
               ) : paged.length === 0 ? (
                 <tr><td colSpan={11} className="px-3 py-10 text-center text-sm" style={{ color: '#94a3b8' }}>Không có kết quả</td></tr>
-              ) : paged.map((r, i) => (
-                <tr key={r.id} className="hover:bg-surface-50 transition-colors">
-                  <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#94a3b8' }}>{(page - 1) * perPage + i + 1}</td>
-                  <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap" style={{ color: '#64748b' }}>{r.releaseDate || '—'}</td>
-                  <td className="px-3 py-2.5 max-w-[200px]">
-                    <div className="flex items-start gap-1.5 flex-wrap">
-                      <PlatformBadge platform={r.platform} />
-                      <button
-                        onClick={() => openEditModal(r)}
-                        className="font-medium text-xs leading-relaxed text-left hover:underline"
-                        style={{ color: '#1e2235' }}
-                      >{r.appName || r.app || '—'}</button>
-                      {(() => { const act = activities[r.hnId?.toLowerCase()] || activities[(r.appName || r.app)?.toLowerCase()]; return (<>
-                        {act?.requestUpdate && <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#fef3c7', color: '#d97706' }}>⚡</span>}
-                      </>) })()}
+              ) : paged.map((r, i) => {
+                const platform = (typeof r.platform === 'object' ? r.platform?.text : r.platform) || ''
+                const isA = platform.toLowerCase().includes('android')
+                const borderColor = (r.status === 'Checked' || r.status === 'Updated') ? '#0d9488' : !r.status ? '#f59e0b' : '#e2e8f0'
+                const act = activities[r.hnId?.toLowerCase()] || activities[(r.appName || r.app)?.toLowerCase()]
+                return (
+                <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9', borderLeft: `3px solid ${borderColor}` }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                  onMouseLeave={e => e.currentTarget.style.background = ''}>
+                  <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 11, color: '#cbd5e1', whiteSpace: 'nowrap' }}>{(page - 1) * perPage + i + 1}</td>
+                  <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>{r.releaseDate?.slice(5, 10) || '—'}</td>
+                  {/* App name — inline platform icon */}
+                  <td style={{ padding: '7px 10px', maxWidth: 200 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                      {platform
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, background: isA ? '#34a853' : '#007aff', color: '#fff', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{isA ? 'A' : 'i'}</span>
+                        : <span style={{ width: 22, height: 22, borderRadius: 6, background: '#f1f5f9', display: 'inline-block', flexShrink: 0 }} />
+                      }
+                      <button onClick={() => openEditModal(r)} style={{ fontSize: 13, fontWeight: 400, color: '#0f172a', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#0d9488'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#0f172a'}>
+                        {r.appName || r.app || '—'}
+                      </button>
+                      {act?.requestUpdate && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#d97706', fontWeight: 600, flexShrink: 0 }}>⚡</span>}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#64748b' }}>{r.hnId || '—'}</td>
-                  <td className="px-3 py-2.5">
-                    <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-surface-100">{r.version || '—'}</span>
+                  <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>{r.hnId || '—'}</td>
+                  <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 400, padding: '3px 8px', borderRadius: 5, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a' }}>{r.version || '—'}</span>
                   </td>
-                  <td className="px-3 py-2.5"><RolloutBadge rollout={r.rollout} /></td>
-                  <td className="px-3 py-2.5 text-xs max-w-[160px] truncate" style={{ color: '#64748b' }}>{r.releaseNote || '—'}</td>
-                  <td className="px-3 py-2.5"><StatusBadge status={r.status} /></td>
-                  <td className="px-3 py-2.5">
-                    <button
-                      onClick={() => openReview(r)}
-                      className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg font-medium text-white transition-colors"
-                      style={{ background: '#0d9488' }}
+                  <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}><RolloutBadge rollout={r.rollout} /></td>
+                  <td style={{ padding: '7px 10px', fontSize: 12, color: '#64748b', maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.releaseNote || <span style={{ color: '#e2e8f0' }}>—</span>}</td>
+                  <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}><StatusBadge status={r.status} /></td>
+                  <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => openReview(r)}
+                      style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = '#0f766e'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#0d9488'}
-                    >
+                      onMouseLeave={e => e.currentTarget.style.background = '#0d9488'}>
                       ✓ Review
                     </button>
                   </td>
-                  <td className="px-3 py-2.5 max-w-[180px]">
-                    {r.reviewNotes
-                      ? <span className="text-xs" style={{ color: '#64748b' }} title={r.reviewNotes}>{r.reviewNotes.length > 50 ? r.reviewNotes.slice(0, 50) + '…' : r.reviewNotes}</span>
-                      : <span className="text-xs" style={{ color: '#cbd5e1' }}>—</span>
-                    }
-                    {r.lastCheckedDate && (
-                      <p className="mt-0.5 font-mono" style={{ fontSize: 10, color: '#cbd5e1' }}>{r.lastCheckedDate}</p>
+                  {/* Inline note editing */}
+                  <td style={{ padding: '7px 10px', minWidth: 130, maxWidth: 180 }}>
+                    {editingNote === r.id ? (
+                      <input autoFocus value={noteValue} onChange={e => setNoteValue(e.target.value)}
+                        onBlur={() => saveNote(r)}
+                        onKeyDown={e => { if (e.key === 'Enter') saveNote(r); if (e.key === 'Escape') setEditingNote(null) }}
+                        style={{ width: '100%', fontSize: 11, padding: '3px 7px', border: '1px solid #0d9488', borderRadius: 5, outline: 'none', color: '#0f172a', background: '#f0fdfa' }}
+                      />
+                    ) : (
+                      <div onClick={() => startEditNote(r)} style={{ cursor: 'text' }} title="Nhấn để chỉnh sửa note">
+                        {r.reviewNotes
+                          ? <span style={{ fontSize: 11, color: '#475569', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reviewNotes}</span>
+                          : <span style={{ fontSize: 11, color: '#e2e8f0' }}>+ note…</span>}
+                        {r.lastCheckedDate && <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#cbd5e1', display: 'block' }}>{r.lastCheckedDate}</span>}
+                      </div>
                     )}
                   </td>
-                  <td className="px-3 py-2.5">
-                    <button
-                      onClick={() => toggleWatchlist(r.id)}
-                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-surface-200 transition-colors whitespace-nowrap"
-                      style={{ color: watchlist.has(r.id) ? '#0d9488' : '#94a3b8', borderColor: watchlist.has(r.id) ? '#0d9488' : '' }}
-                    >
-                      {watchlist.has(r.id) ? '◉' : '○'} Lưu xem sau
+                  {/* Watchlist icon */}
+                  <td style={{ padding: '7px 8px' }}>
+                    <button onClick={() => toggleWatchlist(r.id)} title={watchlist.has(r.id) ? 'Bỏ lưu' : 'Lưu xem sau'}
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, border: `1px solid ${watchlist.has(r.id) ? '#0d9488' : '#e2e8f0'}`, background: watchlist.has(r.id) ? '#f0fdfa' : 'transparent', color: watchlist.has(r.id) ? '#0d9488' : '#cbd5e1', cursor: 'pointer', fontSize: 13, transition: 'all 0.15s' }}
+                      onMouseEnter={e => { if (!watchlist.has(r.id)) { e.currentTarget.style.borderColor = '#94a3b8'; e.currentTarget.style.color = '#94a3b8' } }}
+                      onMouseLeave={e => { if (!watchlist.has(r.id)) { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#cbd5e1' } }}>
+                      {watchlist.has(r.id) ? '◉' : '○'}
                     </button>
                   </td>
                 </tr>
-              ))}
+              )
+              })}
             </tbody>
           </table>
         </div>
@@ -544,7 +576,7 @@ return releases.filter(r => {
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Reviewer</label>
                 <select className="input" value={reviewForm.reviewer} onChange={e => setReviewForm(f => ({ ...f, reviewer: e.target.value }))}>
-                  {['Hieu', 'Hoa Nguyen', 'Tuan Hoang'].map(r => <option key={r} value={r}>{r}</option>)}
+                  {REVIEWER_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div>

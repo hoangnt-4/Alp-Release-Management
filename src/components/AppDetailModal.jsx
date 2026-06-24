@@ -7,7 +7,7 @@ import { useReleasesStore } from '../hooks/useReleasesStore'
 import { PlatformBadge, RolloutBadge } from '../pages/Dashboard'
 import StatusBadge from './StatusBadge'
 import { AppStatusBadge } from '../pages/Apps'
-import { FEATURES } from '../lib/features'
+import { FEATURES, REVIEWER_OPTIONS, DEFAULT_REVIEWER, DEFAULT_STATUS } from '../lib/features'
 import StoreAccountSidebar from './StoreAccountSidebar'
 
 const STATUS_OPTS   = ['', 'Checked', 'Updated', 'Pending Review', 'Checking', 'New']
@@ -252,17 +252,24 @@ function ActivitiesTab({ app, initialActivity, timeline, latestRelease }) {
 
   // Auto turn off toggles only if the latest release note covers the request date
   useEffect(() => {
-    if (!activity || !latestRelease?.releaseNote || !latestRelease?.releaseDate) return
+    if (!activity) return
+    // Init crashDate in localStorage if fixCrashes is ON but no date recorded
+    // (e.g. toggled from another device or set directly in Lark)
+    if (activity.fixCrashes && !getCrashDate()) {
+      setCrashDate(new Date().toISOString().slice(0, 10))
+    }
+    if (!latestRelease?.releaseNote || !latestRelease?.releaseDate) return
     const note        = latestRelease.releaseNote.toLowerCase()
     const releaseDate = latestRelease.releaseDate   // "YYYY-MM-DD"
     const reqDate     = activity.lastedRequest || '' // "YYYY-MM-DD" or ''
     const crashDate   = getCrashDate()              // "YYYY-MM-DD" or ''
     const patch = {}
-    if (activity.fixCrashes   && (!crashDate || releaseDate >= crashDate) && (note.includes('fix crash') || note.includes('fix bug'))) {
+    // Only auto-off crash if we have a recorded crashDate AND release covers it
+    if (activity.fixCrashes && crashDate && releaseDate >= crashDate && (note.includes('fix crash') || note.includes('fix bug'))) {
       patch.fixCrashes = false
       setCrashDate(null)
     }
-    if (activity.requestUpdate && (!reqDate || releaseDate >= reqDate) && (note.includes('update request') || note.includes('request update')))
+    if (activity.requestUpdate && reqDate && releaseDate >= reqDate && (note.includes('update request') || note.includes('request update')))
       patch.requestUpdate = false
     if (Object.keys(patch).length === 0) return
     updateActivity(activity.id, patch)
@@ -667,7 +674,7 @@ export default function AppDetailModal({ app, onClose }) {
 
   // Review modal
   const [reviewModal, setReviewModal]   = useState(null)
-  const [reviewForm, setReviewForm]     = useState({ status: 'Checked', reviewNotes: '', lastCheckedDate: '', reviewer: 'Hieu' })
+  const [reviewForm, setReviewForm]     = useState({ status: DEFAULT_STATUS, reviewNotes: '', lastCheckedDate: '', reviewer: DEFAULT_REVIEWER })
   const [reviewSaving, setReviewSaving] = useState(false)
 
   const openEdit = (r) => {
@@ -691,7 +698,7 @@ export default function AppDetailModal({ app, onClose }) {
   }
 
   const openReview = (r) => {
-    setReviewForm({ status: r.status || 'Checked', reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10), reviewer: r.reviewer || 'Hieu' })
+    setReviewForm({ status: r.status || DEFAULT_STATUS, reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10), reviewer: r.reviewer || DEFAULT_REVIEWER })
     setReviewModal(r)
   }
 
@@ -732,20 +739,24 @@ export default function AppDetailModal({ app, onClose }) {
     ...(FEATURES.monet ? [{ key: 'monet', label: 'Monet', dot: hasMonetData }] : []),
   ]
 
+  const _platformBg = (platform) => (platform || '').toLowerCase().includes('android') ? '#34a853' : '#007aff'
+  const _platformLetter = (platform) => (platform || '').toLowerCase().includes('android') ? 'A' : 'i'
+
   return ReactDOM.createPortal(
     <div className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.45)', zIndex: 1000 }}
+      style={{ background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 1000 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden"
-        style={{ width: '96vw', maxWidth: 900, height: '92vh' }}>
+      <div className="bg-white rounded-2xl flex flex-col overflow-hidden"
+        style={{ width: '96vw', maxWidth: 900, height: '92vh', boxShadow: '0 24px 60px rgba(0,0,0,0.24), 0 6px 20px rgba(0,0,0,0.12)' }}>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 shrink-0">
+        {/* Header — gradient band */}
+        <div className="flex items-center justify-between px-6 py-4 shrink-0"
+          style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', borderRadius: '16px 16px 0 0' }}>
           <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10 shrink-0">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold"
-                style={{ background: '#0d9488', opacity: app.freezed ? 0.45 : 1 }}>
-                {(app.alpId || '?')[0].toUpperCase()}
+            <div className="relative w-11 h-11 shrink-0">
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white text-sm font-bold"
+                style={{ background: _platformBg(app.platform), opacity: app.freezed ? 0.5 : 1 }}>
+                {_platformLetter(app.platform)}
               </div>
               {app.freezed && (
                 <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🧊</span>
@@ -753,29 +764,29 @@ export default function AppDetailModal({ app, onClose }) {
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="font-semibold text-base">{app.alpId || '—'}</h2>
+                <h2 className="font-semibold text-base" style={{ color: '#fff' }}>{app.alpId || '—'}</h2>
                 <AppStatusBadge status={app.status} />
                 {appActivity?.requestUpdate && (
-                  <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#fef3c7', color: '#d97706' }}>⚡ Request Update</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: 'rgba(254,243,199,0.15)', color: '#fcd34d', border: '1px solid rgba(252,211,77,0.3)' }}>⚡ Request Update</span>
                 )}
               </div>
               <div className="flex items-center gap-2 mt-0.5">
                 <PlatformBadge platform={app.platform} />
-                <span className="text-xs font-mono" style={{ color: '#94a3b8' }}>{app.hnId || '—'}</span>
+                <span className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.5)' }}>{app.hnId || '—'}</span>
                 {app.appLinkUrl && (
                   <a href={app.appLinkUrl} target="_blank" rel="noopener noreferrer"
-                    className="text-xs hover:underline" style={{ color: '#0d9488' }}>Store ↗</a>
+                    className="text-xs hover:underline" style={{ color: '#2dd4bf' }}>Store ↗</a>
                 )}
                 {app.androidStatus && app.platform?.toLowerCase() !== 'ios' && (() => {
                   const s = app.androidStatus.toLowerCase()
-                  const color = s.includes('public') ? '#16a34a'
-                    : s.includes('review') ? '#d97706'
-                    : s.includes('testing') ? '#2563eb'
-                    : '#94a3b8'
+                  const color = s.includes('public') ? '#34d399'
+                    : s.includes('review') ? '#fcd34d'
+                    : s.includes('testing') ? '#60a5fa'
+                    : 'rgba(255,255,255,0.4)'
                   return (
                     <span className="group relative inline-flex items-center">
                       <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 hidden group-hover:block text-xs whitespace-nowrap pointer-events-none px-1.5 py-0.5 rounded" style={{ background: '#f8fafc', color, border: `1px solid ${color}40` }}>{app.androidStatus}</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 hidden group-hover:block text-xs whitespace-nowrap pointer-events-none px-1.5 py-0.5 rounded" style={{ background: '#1e293b', color, border: `1px solid ${color}40` }}>{app.androidStatus}</span>
                     </span>
                   )
                 })()}
@@ -783,11 +794,11 @@ export default function AppDetailModal({ app, onClose }) {
                   <button
                     onClick={() => setShowAccountPanel(true)}
                     className="text-xs px-1.5 py-0.5 rounded"
-                    style={{ background: '#f1f5f9', color: '#475569', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9' }}
+                    style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)' }}
                   >
-                    <span style={{ color: '#94a3b8', fontWeight: 400 }}>by</span> {app.storeAccount}
+                    <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>by</span> {app.storeAccount}
                   </button>
                 )}
               </div>
@@ -802,12 +813,15 @@ export default function AppDetailModal({ app, onClose }) {
               { label: 'Reviewed', value: checkedCount },
             ].map(({ label, value }) => (
               <div key={label} className="text-center">
-                <p className="text-sm font-semibold" style={{ color: '#0f172a' }}>{value}</p>
-                <p className="text-xs" style={{ color: '#94a3b8' }}>{label}</p>
+                <p className="text-sm font-semibold" style={{ color: '#fff' }}>{value}</p>
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</p>
               </div>
             ))}
           </div>
-          <button onClick={onClose} className="text-xl shrink-0" style={{ color: '#94a3b8' }}>✕</button>
+          <button onClick={onClose} className="text-xl shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+          >✕</button>
         </div>
 
         {/* Body: 2 columns */}
@@ -871,21 +885,67 @@ export default function AppDetailModal({ app, onClose }) {
               {tab === 'monet' && <MonetTab data={monetData} />}
 
               {tab === 'documents' && (
-                <div className="p-5">
+                <div style={{ padding: '20px 20px' }}>
                   {docLinks.length === 0 ? (
-                    <p className="text-sm text-center py-10" style={{ color: '#94a3b8' }}>Chưa có tài liệu nào</p>
+                    <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '40px 0' }}>Chưa có tài liệu nào</p>
                   ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      {docLinks.map(doc => (
-                        <a key={doc.label} href={doc.url || doc.text} target="_blank" rel="noopener noreferrer"
-                          className="flex flex-col gap-1 px-4 py-3 rounded-xl hover:shadow-sm transition-all group"
-                          style={{ background: '#f8fafc', border: '1px solid #e2e8f0', textDecoration: 'none' }}>
-                          <span className="text-xs" style={{ color: '#94a3b8' }}>{doc.label}</span>
-                          <span className="text-sm font-medium truncate group-hover:underline" style={{ color: '#0d9488' }}>
-                            {doc.text || doc.url}
-                          </span>
-                        </a>
-                      ))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {docLinks.map((doc, i) => {
+                        const DOC_ICON = {
+                          'Figma':            { icon: '✦', bg: '#ede9fe', color: '#7c3aed' },
+                          'HN Bug':           { icon: '⚠', bg: '#fef3c7', color: '#d97706' },
+                          'Ads Script':       { icon: '◈', bg: '#dbeafe', color: '#2563eb' },
+                          'iAP Script':       { icon: '◈', bg: '#d1fae5', color: '#059669' },
+                          'Metadata':         { icon: '≡', bg: '#f1f5f9', color: '#475569' },
+                          'Task/Bug List':    { icon: '✓', bg: '#dcfce7', color: '#16a34a' },
+                          'Local Noti Script':{ icon: '◈', bg: '#fce7f3', color: '#db2777' },
+                        }
+                        const meta = DOC_ICON[doc.label] || { icon: '→', bg: '#f1f5f9', color: '#64748b' }
+                        const href = doc.url  // only actual URL, never fall back to display text
+                        const isLink = !!href
+
+                        const rowStyle = {
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '11px 14px', borderRadius: 10,
+                          background: isLink ? '#f8fafc' : '#fafafa',
+                          border: `1px solid ${isLink ? '#e2e8f0' : '#f1f5f9'}`,
+                          textDecoration: 'none',
+                          cursor: isLink ? 'pointer' : 'default',
+                          transition: 'all 0.15s',
+                          opacity: isLink ? 1 : 0.7,
+                        }
+
+                        const inner = (
+                          <>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 8, background: meta.bg, color: meta.color, fontSize: 15, fontWeight: 700, flexShrink: 0 }}>
+                              {meta.icon}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{doc.label}</div>
+                              <div style={{ fontSize: 13, color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.text || href}</div>
+                            </div>
+                            {isLink ? (
+                              <span className="doc-arrow" style={{ flexShrink: 0, color: '#cbd5e1', display: 'flex', alignItems: 'center', transition: 'color 0.15s' }}>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                                </svg>
+                              </span>
+                            ) : (
+                              <span style={{ flexShrink: 0, fontSize: 11, color: '#cbd5e1' }}>—</span>
+                            )}
+                          </>
+                        )
+
+                        return isLink ? (
+                          <a key={doc.label} href={href} target="_blank" rel="noopener noreferrer" style={rowStyle}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#f0fdfa'; e.currentTarget.style.borderColor = '#0d9488'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(13,148,136,0.10)'; e.currentTarget.querySelector('.doc-arrow').style.color = '#0d9488' }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.querySelector('.doc-arrow').style.color = '#cbd5e1' }}>
+                            {inner}
+                          </a>
+                        ) : (
+                          <div key={doc.label} style={rowStyle}>{inner}</div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -1011,7 +1071,7 @@ export default function AppDetailModal({ app, onClose }) {
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Reviewer</label>
                 <select className="input w-full text-sm" value={reviewForm.reviewer} onChange={e => setReviewForm(f => ({ ...f, reviewer: e.target.value }))}>
-                  {['Hieu', 'Hoa Nguyen', 'Tuan Hoang'].map(r => <option key={r}>{r}</option>)}
+                  {REVIEWER_OPTIONS.map(r => <option key={r}>{r}</option>)}
                 </select>
               </div>
             </div>
@@ -1037,7 +1097,9 @@ export default function AppDetailModal({ app, onClose }) {
         <StoreAccountSidebar
           account={app.storeAccount}
           apps={apps || []}
+          monet={monet || {}}
           onClose={() => setShowAccountPanel(false)}
+          onSelectApp={a => { setShowAccountPanel(false); navigate(`/apps?app=${a.id}`) }}
         />
       )}
     </div>,

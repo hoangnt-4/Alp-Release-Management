@@ -13,8 +13,6 @@ const MILESTONE_OPTS = [
   { key: 'liveIap',     label: 'Live iAP' },
 ]
 
-const BAR_COLOR = '#4f72f5'
-
 function diffDays(a, b) {
   return Math.round((new Date(b) - new Date(a)) / 86400000)
 }
@@ -23,7 +21,6 @@ function GanttChart({ timelines, apps }) {
   const [startKey, setStartKey] = useState('testStart')
   const [endKey,   setEndKey]   = useState('liveFullAds')
 
-  // Build rows with data (both milestones present), and no-data rows
   const { rows, noDataRows } = useMemo(() => {
     const withData = [], noData = []
     apps.forEach(app => {
@@ -32,96 +29,139 @@ function GanttChart({ timelines, apps }) {
       const s   = tl?.[startKey]
       const e   = tl?.[endKey]
       const label = app.alpId || app.hnId || '—'
-      if (!s || !e || e <= s) { noData.push({ label }); return }
-      withData.push({ label, start: s, end: e, days: diffDays(s, e) })
+      const platform = typeof app.platform === 'object' ? app.platform?.text : (app.platform || '')
+      if (!s || !e || e <= s) { noData.push({ label, platform }); return }
+      withData.push({ label, start: s, end: e, days: diffDays(s, e), platform })
     })
-    withData.sort((a, b) => b.days - a.days) // longest first
+    withData.sort((a, b) => b.days - a.days)
     return { rows: withData, noDataRows: noData }
   }, [timelines, apps, startKey, endKey])
 
   const maxDays = useMemo(() => Math.max(...rows.map(r => r.days), 1), [rows])
 
+  const selectStyle = {
+    padding: '5px 10px', fontSize: 12, borderRadius: 8,
+    border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)',
+    color: '#fff', cursor: 'pointer', outline: 'none',
+  }
+
   return (
-    <div className="card p-5 space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <p className="text-sm font-semibold">Gantt — Timeline apps</p>
-        <div className="flex items-center gap-3 text-xs">
-          <div className="flex items-center gap-2">
-            <span style={{ color: '#64748b' }}>Start date</span>
-            <select className="input text-xs py-1" value={startKey} onChange={e => setStartKey(e.target.value)}>
-              {MILESTONE_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </select>
+    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+      {/* Dark header */}
+      <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: '0 0 3px' }}>Gantt — Timeline apps</p>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', margin: 0 }}>{rows.length} apps có data · {noDataRows.length} chưa có</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span style={{ color: '#64748b' }}>End date</span>
-            <select className="input text-xs py-1" value={endKey} onChange={e => setEndKey(e.target.value)}>
-              {MILESTONE_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>Start date</span>
+              <select style={selectStyle} value={startKey} onChange={e => setStartKey(e.target.value)}>
+                {MILESTONE_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </div>
+            <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>→</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>End date</span>
+              <select style={selectStyle} value={endKey} onChange={e => setEndKey(e.target.value)}>
+                {MILESTONE_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </div>
           </div>
         </div>
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-center py-8" style={{ color: '#94a3b8' }}>Không có app nào có đủ 2 mốc này</p>
+        <div style={{ padding: '48px 20px', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Không có app nào có đủ 2 mốc này</div>
       ) : (
-        <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
-          <div className="space-y-1" style={{ minWidth: 480 }}>
-            {/* Apps with data */}
-            {rows.map((r, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs">
-                <div className="shrink-0 text-right truncate" style={{ width: 140, color: '#475569' }}>{r.label}</div>
-                <div className="relative flex-1 h-6 rounded" style={{ background: '#f1f5f9' }}>
-                  <div
-                    className="absolute top-0.5 bottom-0.5 left-0 rounded flex items-center px-2 gap-2"
-                    style={{ width: `${(r.days / maxDays) * 100}%`, background: BAR_COLOR, minWidth: 28 }}
-                  >
-                    <span className="text-white text-xs font-semibold shrink-0">{r.days} days</span>
+        <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 220px)' }}>
+          {rows.map((r, i) => {
+            const isA = r.platform.toLowerCase().includes('android')
+            const dc  = isA ? '#34a853' : '#007aff'
+            const pct = Math.max((r.days / maxDays) * 100, 2)
+            // Color: teal for top 3, brand blue for rest, fading opacity
+            const barColor = i < 3
+              ? `linear-gradient(90deg, #0d9488 0%, #2dd4bf 100%)`
+              : `linear-gradient(90deg, #4361ee 0%, #738ef5 100%)`
+            return (
+              <div key={i}
+                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '7px 20px', borderBottom: '1px solid #f8fafc', transition: 'background 0.1s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = ''}
+              >
+                {/* App identity */}
+                <div style={{ width: 160, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 5, background: dc, color: '#fff', fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{isA ? 'A' : 'i'}</span>
+                  <span style={{ fontSize: 12, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
+                </div>
+                {/* Bar track */}
+                <div style={{ flex: 1, position: 'relative', height: 26, borderRadius: 6, background: '#f1f5f9', overflow: 'hidden' }}>
+                  <div style={{
+                    position: 'absolute', top: 3, bottom: 3, left: 0, borderRadius: 4,
+                    background: barColor, width: `${pct}%`, minWidth: 32,
+                    display: 'flex', alignItems: 'center', paddingLeft: 10,
+                  }}>
+                    <span style={{ color: '#fff', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{r.days} days</span>
                   </div>
                 </div>
+                {/* Days label */}
+                <span style={{ width: 36, flexShrink: 0, textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#94a3b8', fontFamily: 'monospace' }}>{r.days}d</span>
               </div>
-            ))}
+            )
+          })}
 
-            {/* Divider */}
-            {noDataRows.length > 0 && (
-              <div className="flex items-center gap-2 pt-2 pb-1">
-                <div className="shrink-0" style={{ width: 140 }} />
-                <div className="flex-1 border-t border-dashed" style={{ borderColor: '#e2e8f0' }} />
+          {noDataRows.length > 0 && (
+            <>
+              <div style={{ padding: '8px 20px 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Chưa có data</span>
+                <div style={{ flex: 1, borderTop: '1px dashed #e2e8f0' }} />
               </div>
-            )}
-
-            {/* Apps without data */}
-            {noDataRows.map((r, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs opacity-40">
-                <div className="shrink-0 text-right truncate" style={{ width: 140, color: '#94a3b8' }}>{r.label}</div>
-                <div className="flex-1 h-6 rounded" style={{ background: '#f1f5f9' }} />
-              </div>
-            ))}
-          </div>
+              {noDataRows.map((r, i) => {
+                const isA = r.platform.toLowerCase().includes('android')
+                const dc  = isA ? '#34a853' : '#007aff'
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '5px 20px', opacity: 0.35 }}>
+                    <div style={{ width: 160, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 5, background: dc, color: '#fff', fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{isA ? 'A' : 'i'}</span>
+                      <span style={{ fontSize: 12, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</span>
+                    </div>
+                    <div style={{ flex: 1, height: 20, borderRadius: 4, background: '#f1f5f9' }} />
+                  </div>
+                )
+              })}
+            </>
+          )}
         </div>
       )}
 
-      <p className="text-xs" style={{ color: '#94a3b8' }}>
-        {rows.length} app có data · {noDataRows.length} chưa có · {MILESTONE_OPTS.find(o => o.key === startKey)?.label} → {MILESTONE_OPTS.find(o => o.key === endKey)?.label}
-      </p>
+      {/* Footer */}
+      <div style={{ padding: '10px 20px', borderTop: '1px solid #f1f5f9', background: '#f8fafc' }}>
+        <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>
+          {MILESTONE_OPTS.find(o => o.key === startKey)?.label} → {MILESTONE_OPTS.find(o => o.key === endKey)?.label}
+          {rows.length > 0 && <> · max <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#64748b' }}>{maxDays}</span> ngày</>}
+        </p>
+      </div>
     </div>
   )
 }
 
-function BarChart({ data, color = '#0d9488', height = 120 }) {
+function BarChart({ data, color = '#0d9488', height = 140 }) {
   if (!data.length) return null
   const max = Math.max(...data.map(d => d.value), 1)
+  const innerH = height - 36
   return (
-    <div className="flex items-end gap-1 h-full" style={{ height }}>
-      {data.map((d, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-          <span className="text-xs font-mono font-semibold" style={{ color: '#64748b' }}>{d.value || ''}</span>
-          <div
-            className="w-full rounded-t transition-all duration-300"
-            style={{ height: `${(d.value / max) * (height - 28)}px`, background: color, minHeight: d.value ? 4 : 0 }}
-          />
-          <span className="text-xs truncate w-full text-center" style={{ color: '#94a3b8', fontSize: 10 }}>{d.label}</span>
-        </div>
-      ))}
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height }}>
+      {data.map((d, i) => {
+        const barH = d.value ? Math.max(6, Math.round((d.value / max) * innerH)) : 0
+        return (
+          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: d.value ? '#0f172a' : 'transparent', fontFamily: 'monospace', lineHeight: 1 }}>{d.value}</span>
+            <div style={{ width: '100%', borderRadius: '5px 5px 0 0', background: `linear-gradient(180deg, ${color} 0%, ${color}bb 100%)`, height: barH, minHeight: d.value ? 4 : 0, transition: 'height 0.3s' }} />
+            <span style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{d.label}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -144,19 +184,20 @@ function DonutChart({ slices, size = 140 }) {
     return path
   })
   return (
-    <div className="flex items-center gap-4 flex-wrap">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} stroke="white" strokeWidth="2" />)}
-        <circle cx={cx} cy={cy} r={r * 0.55} fill="white" />
-        <text x={cx} y={cy + 5} textAnchor="middle" fontSize="14" fontWeight="bold" fill="#1e2235">{total}</text>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+        {paths.map((p, i) => <path key={i} d={p.d} fill={p.color} stroke="white" strokeWidth="2.5" />)}
+        <circle cx={cx} cy={cy} r={r * 0.56} fill="white" />
+        <text x={cx} y={cy - 4} textAnchor="middle" fontSize="15" fontWeight="800" fill="#0f172a">{total}</text>
+        <text x={cx} y={cy + 12} textAnchor="middle" fontSize="9" fill="#94a3b8">total</text>
       </svg>
-      <div className="space-y-1.5">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         {paths.map((p, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
-            <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: p.color }} />
-            <span style={{ color: '#64748b' }}>{p.label}</span>
-            <span className="font-semibold ml-1">{p.value}</span>
-            <span style={{ color: '#94a3b8' }}>({Math.round(p.value / total * 100)}%)</span>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color, flexShrink: 0, display: 'inline-block' }} />
+            <span style={{ fontSize: 12, color: '#475569' }}>{p.label}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginLeft: 2, fontFamily: 'monospace' }}>{p.value}</span>
+            <span style={{ fontSize: 11, color: '#94a3b8' }}>({Math.round(p.value / total * 100)}%)</span>
           </div>
         ))}
       </div>
@@ -202,14 +243,14 @@ function PieChart({ slices }) {
 function HBarChart({ data, color = '#0d9488', max: maxProp }) {
   const max = maxProp || Math.max(...data.map(d => d.value), 1)
   return (
-    <div className="space-y-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
       {data.map((d, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs">
-          <span className="w-32 truncate text-right shrink-0" style={{ color: '#64748b' }}>{d.label}</span>
-          <div className="flex-1 bg-surface-100 rounded-full h-2 overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-300" style={{ width: `${(d.value / max) * 100}%`, background: color }} />
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 140, flexShrink: 0, textAlign: 'right', color: '#475569', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.label}</span>
+          <div style={{ flex: 1, borderRadius: 6, overflow: 'hidden', background: '#f1f5f9', height: 10 }}>
+            <div style={{ height: '100%', borderRadius: 6, background: color, width: `${(d.value / max) * 100}%`, transition: 'width 0.4s' }} />
           </div>
-          <span className="w-6 text-right font-mono" style={{ color: '#94a3b8' }}>{d.value}</span>
+          <span style={{ width: 28, flexShrink: 0, textAlign: 'right', fontFamily: 'monospace', fontWeight: 700, color: '#475569', fontSize: 12 }}>{d.value}</span>
         </div>
       ))}
     </div>
@@ -644,14 +685,16 @@ function ReleaseCalendarView({ releases, apps, timelines }) {
   return (
     <div style={{ fontFamily:'var(--font-sans)', display:'flex', flexDirection:'column', height:'100%' }}>
 
-      {/* Search */}
-      <div className="card p-3" style={{ borderRadius:0,borderLeft:'none',borderRight:'none',borderTop:'none',display:'flex',alignItems:'center',gap:8,position:'relative',zIndex:10 }}>
-        <div style={{ position:'relative' }}>
-          <span style={{ position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',color:'var(--color-text-secondary)',fontSize:12,pointerEvents:'none' }}>⌕</span>
+      {/* Search bar */}
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', background: '#fff', display: 'flex', alignItems: 'center', gap: 10, position: 'relative', zIndex: 10, flexShrink: 0 }}>
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="6" cy="6" r="4" stroke="#94a3b8" strokeWidth="1.5"/>
+            <path d="M9 9L12 12" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
           <input
             ref={inputRef}
-            className="input text-xs py-1.5"
-            style={{ width:240, paddingLeft:28 }}
+            style={{ width: 260, height: 38, paddingLeft: 36, paddingRight: 14, border: `1.5px solid ${showDrop ? '#0d9488' : '#e2e8f0'}`, borderRadius: 10, background: '#fff', color: '#0f172a', fontSize: 13, outline: 'none', boxShadow: showDrop ? '0 0 0 3px rgba(13,148,136,0.10)' : '0 1px 3px rgba(0,0,0,0.04)', transition: 'all 0.15s' }}
             placeholder="Tìm app theo tên hoặc HN ID..."
             value={search}
             onChange={e => { setSearch(e.target.value); setShowDrop(true) }}
@@ -659,37 +702,39 @@ function ReleaseCalendarView({ releases, apps, timelines }) {
             onBlur={() => setTimeout(() => setShowDrop(false), 160)}
           />
           {showDrop && filtered.length > 0 && (
-            <div style={{ position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:300,background:'var(--color-background-primary)',border:'0.5px solid var(--color-border-secondary)',borderRadius:8,minWidth:240,maxHeight:260,overflowY:'auto',boxShadow:'0 6px 20px rgba(0,0,0,0.15)' }}>
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 300, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, minWidth: 280, maxHeight: 280, overflowY: 'auto', boxShadow: '0 8px 30px rgba(0,0,0,0.12)' }}>
               {filtered.map(a => {
                 const aIsA = ((typeof a.platform === 'object' ? a.platform?.text : a.platform)||'').toLowerCase().includes('android')
                 const adc  = aIsA ? '#34a853' : '#007aff'
                 const isSel = (a.alpId||a.hnId||'').toLowerCase() === (selectedApp ? (selectedApp.alpId||selectedApp.hnId||'').toLowerCase() : '')
                 return (
                   <div key={a.id} onMouseDown={() => selectApp(a)}
-                    style={{ display:'flex',alignItems:'center',gap:8,padding:'8px 12px',cursor:'pointer',background: isSel ? 'var(--color-background-secondary)' : '' }}
-                    onMouseEnter={e => e.currentTarget.style.background='var(--color-background-secondary)'}
-                    onMouseLeave={e => e.currentTarget.style.background= isSel ? 'var(--color-background-secondary)' : ''}>
-                    <span style={{ display:'inline-flex',alignItems:'center',justifyContent:'center',width:22,height:22,borderRadius:6,background:adc,color:'white',fontSize:11,fontWeight:700,flexShrink:0 }}>{aIsA?'A':'i'}</span>
-                    <div style={{ flex:1,minWidth:0 }}>
-                      <p style={{ fontSize:12,fontWeight:500,color:'var(--color-text-primary)',margin:0 }}>{a.alpId||a.hnId}</p>
-                      <p style={{ fontSize:11,color:'var(--color-text-secondary)',margin:0 }}>{a.hnId}</p>
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', background: isSel ? '#f0fdfa' : '' }}
+                    onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#f8fafc' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isSel ? '#f0fdfa' : '' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 7, background: adc, color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{aIsA ? 'A' : 'i'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: '#0f172a', margin: 0 }}>{a.alpId||a.hnId}</p>
+                      <p style={{ fontSize: 11, color: '#94a3b8', margin: 0 }}>{a.hnId}</p>
                     </div>
-                    {isSel && <span style={{ fontSize:11,color:'#0d9488' }}>✓</span>}
+                    {isSel && <span style={{ fontSize: 12, color: '#0d9488', fontWeight: 700 }}>✓</span>}
                   </div>
                 )
               })}
             </div>
           )}
         </div>
+
+        {/* Selected app chip */}
         {selectedApp && (
           <>
-            <div style={{ display:'flex',alignItems:'center',gap:5,padding:'3px 8px 3px 5px',borderRadius:20,background:'var(--color-background-secondary)',border:`1.5px solid ${dc}40` }}>
-              <span style={{ display:'inline-flex',alignItems:'center',justifyContent:'center',width:18,height:18,borderRadius:4,background:dc,color:'white',fontSize:9,fontWeight:700 }}>{isA?'A':'i'}</span>
-              <span style={{ fontSize:12,fontWeight:500,color:'var(--color-text-primary)',whiteSpace:'nowrap' }}>{selectedApp.alpId||selectedApp.hnId}</span>
-              <button onMouseDown={() => { setSelectedApp(null); setSearch(''); setSelDate(null); navigate('/stats?view=calendar',{replace:true}) }}
-                style={{ display:'inline-flex',alignItems:'center',justifyContent:'center',width:14,height:14,borderRadius:'50%',background:'var(--color-border-secondary)',border:'none',cursor:'pointer',color:'var(--color-text-secondary)',fontSize:10,padding:0,marginLeft:1 }}>×</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px 4px 6px', borderRadius: 20, background: `${dc}12`, border: `1.5px solid ${dc}30` }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 5, background: dc, color: '#fff', fontSize: 10, fontWeight: 700 }}>{isA ? 'A' : 'i'}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: dc, whiteSpace: 'nowrap' }}>{selectedApp.alpId||selectedApp.hnId}</span>
+              <button onMouseDown={() => { setSelectedApp(null); setSearch(''); setSelDate(null); navigate('/stats?view=calendar', { replace: true }) }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: '50%', background: `${dc}25`, border: 'none', cursor: 'pointer', color: dc, fontSize: 12, padding: 0, fontWeight: 700 }}>×</button>
             </div>
-            {dates.length > 0 && <span style={{ fontSize:11,color:'var(--color-text-secondary)',marginLeft:'auto' }}>{dates.length} releases</span>}
+            {dates.length > 0 && <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 4 }}>{dates.length} releases</span>}
           </>
         )}
       </div>
@@ -797,20 +842,26 @@ function ReleaseCalendarView({ releases, apps, timelines }) {
           <MonthlyBarChart appReleases={appReleases} dotColor={dc} />
 
           {selDate && selRels.length > 0 && (
-            <div style={{ margin:'0 16px 8px',border:'1px solid var(--color-border-secondary)',borderRadius:8,background:'var(--color-background-secondary)',padding:'10px 16px',flexShrink:0 }}>
-              <p style={{ fontSize:11,fontWeight:500,color:'var(--color-text-secondary)',marginBottom:6 }}>
-                Update Details · <span style={{ fontFamily:'var(--font-mono)',color:'var(--color-text-primary)' }}>{selDate}</span>
-              </p>
-              {selRels.map((r, i) => {
-                const sbStyle = r.status ? (STATUS_BADGE_STYLE[r.status] || { bg:'var(--color-background-primary)', color:'var(--color-text-secondary)' }) : null
-                return (
-                <div key={i} style={{ display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderTop:i>0?'1px solid var(--color-border-tertiary)':'none' }}>
-                  <span style={{ fontFamily:'var(--font-mono)',fontSize:12,fontWeight:500,color:'var(--color-text-primary)',whiteSpace:'nowrap' }}>{r.version||'—'}</span>
-                  {r.rollout && r.rollout!=='--' && <span style={{ fontSize:11,padding:'1px 7px',borderRadius:20,background:'#fef3c7',color:'#b45309',whiteSpace:'nowrap' }}>{r.rollout}</span>}
-                  {r.releaseNote && <span style={{ fontSize:12,color:'var(--color-text-secondary)',flex:1 }}>{r.releaseNote}</span>}
-                  {r.status && sbStyle && <span style={{ fontSize:10,padding:'2px 8px',borderRadius:20,background:sbStyle.bg,color:sbStyle.color,fontWeight:600,whiteSpace:'nowrap',flexShrink:0 }}>{r.status}</span>}
-                </div>
-              )})}
+            <div style={{ margin: '0 16px 8px', borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+              <div style={{ padding: '9px 14px', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 5, background: dc, color: '#fff', fontSize: 10, fontWeight: 700 }}>{isA ? 'A' : 'i'}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>Update Details</span>
+                <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#2dd4bf', fontWeight: 700 }}>{selDate}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{selRels.length} bản</span>
+              </div>
+              <div style={{ background: '#fff' }}>
+                {selRels.map((r, i) => {
+                  const sbStyle = r.status ? (STATUS_BADGE_STYLE[r.status] || { bg: '#f1f5f9', color: '#64748b' }) : null
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderTop: i > 0 ? '1px solid #f8fafc' : 'none' }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', minWidth: 60 }}>{r.version || '—'}</span>
+                      {r.rollout && r.rollout !== '--' && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#fef3c7', color: '#b45309', whiteSpace: 'nowrap', fontWeight: 600 }}>{r.rollout}</span>}
+                      {r.releaseNote && <span style={{ fontSize: 12, color: '#64748b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.releaseNote}</span>}
+                      {r.status && sbStyle && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: sbStyle.bg, color: sbStyle.color, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, border: `1px solid ${sbStyle.color}30` }}>{r.status}</span>}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           )}
 
@@ -892,7 +943,7 @@ export default function Stats() {
 
   if (view === 'gantt') {
     return (
-      <div className="p-3 md:p-6">
+      <div style={{ padding: '24px' }}>
         <GanttChart timelines={timelines} apps={apps} />
       </div>
     )
@@ -902,32 +953,56 @@ export default function Stats() {
     return <ReleaseCalendarView releases={releases} apps={apps} timelines={timelines} />
   }
 
-  return (
-    <div className="p-3 md:p-6 space-y-5">
-      <h1 className="text-xl font-semibold">Thống kê</h1>
+  const CardHeader = ({ label, accent }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+      <span style={{ display: 'inline-block', width: 3, height: 16, borderRadius: 2, background: accent, flexShrink: 0 }} />
+      <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>{label}</p>
+    </div>
+  )
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="card p-5">
-          <p className="text-sm font-semibold mb-4">Phát hành theo tháng (12 tháng gần nhất)</p>
-          {byMonth.length ? <BarChart data={byMonth} height={150} /> : <p className="text-sm py-8 text-center" style={{ color: '#94a3b8' }}>Không có dữ liệu</p>}
+  return (
+    <div style={{ padding: '24px 24px', maxWidth: 1200 }}>
+      {/* Page header */}
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>Thống kê</h1>
+        <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>{releases.length} releases · {apps.length} apps</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>
+        {/* Releases by month */}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '20px 20px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <CardHeader label="Phát hành theo tháng (12 tháng gần nhất)" accent="#0d9488" />
+          {byMonth.length
+            ? <BarChart data={byMonth} height={155} />
+            : <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '32px 0' }}>Không có dữ liệu</p>}
         </div>
-        <div className="card p-5">
-          <p className="text-sm font-semibold mb-4">Phân bổ theo status</p>
-          <DonutChart slices={byStatus} size={130} />
+
+        {/* By status */}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '20px 20px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <CardHeader label="Phân bổ theo status" accent="#3b82f6" />
+          <DonutChart slices={byStatus} size={140} />
         </div>
-        <div className="card p-5">
-          <p className="text-sm font-semibold mb-4">Nền tảng (iOS vs Android)</p>
-          <PieChart slices={byPlatform} />
+
+        {/* Platform */}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '20px 20px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <CardHeader label="Nền tảng (iOS vs Android)" accent="#34a853" />
+          <DonutChart slices={byPlatform} size={140} />
         </div>
-        <div className="card p-5">
-          <p className="text-sm font-semibold mb-4">Top 10 app nhiều bản phát hành nhất</p>
-          {topApps.length ? <HBarChart data={topApps} /> : <p className="text-sm py-8 text-center" style={{ color: '#94a3b8' }}>Không có dữ liệu</p>}
+
+        {/* Top apps by releases */}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '20px 20px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <CardHeader label="Top 10 app nhiều bản phát hành nhất" accent="#0d9488" />
+          {topApps.length
+            ? <HBarChart data={topApps} />
+            : <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '32px 0' }}>Không có dữ liệu</p>}
         </div>
-        <div className="card p-5">
-          <p className="text-sm font-semibold mb-4">Top 10 app có Request Update nhiều nhất</p>
+
+        {/* Top request update */}
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: '20px 20px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', gridColumn: 'span 2' }}>
+          <CardHeader label="Top 10 app có Request Update nhiều nhất" accent="#d97706" />
           {topRequestApps.length
             ? <HBarChart data={topRequestApps} color="#d97706" />
-            : <p className="text-sm py-8 text-center" style={{ color: '#94a3b8' }}>Không có dữ liệu</p>}
+            : <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '32px 0' }}>Không có dữ liệu</p>}
         </div>
       </div>
     </div>

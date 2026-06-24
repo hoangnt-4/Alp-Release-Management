@@ -29,6 +29,28 @@ export function AppStatusBadge({ status }) {
   )
 }
 
+// Deterministic gradient from app ID string
+function strHash(s) {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+const GRADIENTS = [
+  ['#0d9488','#06b6d4'], ['#6366f1','#8b5cf6'], ['#f59e0b','#ef4444'],
+  ['#10b981','#3b82f6'], ['#ec4899','#8b5cf6'], ['#f97316','#eab308'],
+  ['#0ea5e9','#6366f1'], ['#14b8a6','#10b981'],
+]
+function appGradient(id) {
+  const g = GRADIENTS[strHash(id || '') % GRADIENTS.length]
+  return `linear-gradient(135deg, ${g[0]}, ${g[1]})`
+}
+
+// Left border color by app status
+const ROW_BORDER = {
+  RUNNING: '#0d9488', CODING: '#34d399', PENDING: '#f59e0b',
+  ABANDONED: '#ef4444', UNPUBLISHED: '#94a3b8', REMOVED: '#94a3b8',
+}
+
 const MILESTONES = [
   { key: 'figmaStart',  label: 'Figma',    color: '#a78bfa' },
   { key: 'devStart',    label: 'Dev',      color: '#60a5fa' },
@@ -164,10 +186,19 @@ function ConfigNotiDropdown({ filterConfigNoti, setFilterConfigNoti, configOpts,
   )
 }
 
+const GOAL_STATUSES = [
+  { value: 'RUNNING',     label: 'Running',     dot: '#22c55e', bg: '#dcfce7', color: '#166534' },
+  { value: 'REMOVED',     label: 'Removed',     dot: '#f472b6', bg: '#fce7f3', color: '#9d174d' },
+  { value: 'UNPUBLISHED', label: 'Unpublished', dot: '#94a3b8', bg: '#f1f5f9', color: '#475569' },
+  { value: 'ABANDONED',   label: 'Abandoned',   dot: '#ef4444', bg: '#fee2e2', color: '#991b1b' },
+]
+
 export default function Apps() {
   const { apps, timelines, activities, monet, loading } = useReleasesStore()
   const location = useLocation()
   const urlStatus = new URLSearchParams(location.search).get('status') || ''
+  const urlView   = new URLSearchParams(location.search).get('view')   || ''
+  const isGoalsView = urlView === 'goals'
 
   const [search, setSearch]                 = useState('')
   const [filterPlatform, setFilterPlatform] = useState('')
@@ -178,21 +209,22 @@ export default function Apps() {
   const [filterConfigNoti, setFilterConfigNoti] = useState([]) // [{type:'show'|'config'|'noti', value}]
   const [filterIap, setFilterIap]               = useState('')
   const [filterFlag, setFilterFlag]             = useState([])
-  // compat aliases (keep filter logic working)
-  const filterShow      = ''
-  const filterConfig    = ''
-  const filterLocalNoti = ''
 
   // Sync filterStatus when URL changes (sidebar sub-tab click)
   useEffect(() => { setFilterStatus(urlStatus) }, [urlStatus])
   const [sort, setSort] = useState({ key: 'hnId', dir: 'asc' })
   const toggleSort = useCallback((key) => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' })), [])
   const [detailApp, setDetailApp] = useState(null)
-  const [accountSidebar, setAccountSidebar] = useState(null) // store account name string
+
+  const GOAL_STATUS_VALUES = GOAL_STATUSES.map(s => s.value)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return apps.filter(a => {
+      // Goals view: only show apps with the 4 goal statuses
+      if (isGoalsView) {
+        if (!GOAL_STATUS_VALUES.includes((a.status || '').toUpperCase())) return false
+      }
       if (q && !(
         a.alpId.toLowerCase().includes(q) ||
         (a.hnId || '').toLowerCase().includes(q) ||
@@ -249,7 +281,7 @@ export default function Apps() {
       if (filterFlag.includes('freezed') && !a.freezed)       return false
       return true
     })
-  }, [apps, search, filterPlatform, filterTimeline, filterStatus, filterRequest, filterCrash, filterConfigNoti, filterIap, filterFlag, timelines, activities])
+  }, [apps, search, filterPlatform, filterTimeline, filterStatus, filterRequest, filterCrash, filterConfigNoti, filterIap, filterFlag, timelines, activities, isGoalsView])
 
   // Unique option values from activities
   const actList = useMemo(() => Object.values(activities), [activities])
@@ -285,15 +317,76 @@ export default function Apps() {
   return (
     <div className="p-3 md:p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Apps</h1>
-          <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{filtered.length} / {apps.length} apps</p>
+      {!isGoalsView && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold">Apps</h1>
+            <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{filtered.length} / {apps.length} apps</p>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Filters */}
-      <div className="card px-2.5 py-2 flex flex-nowrap gap-1.5 items-center overflow-x-auto">
+      {/* Goals stats — only in goals view */}
+      {isGoalsView && (() => {
+        const goalTotal = GOAL_STATUSES.reduce((sum, s) =>
+          sum + apps.filter(a => (a.status || '').toUpperCase() === s.value).length, 0)
+        const goalPct = apps.length ? Math.round(goalTotal / apps.length * 100) : 0
+        const allCards = [
+          // Summary "Goals" card first
+          { value: '__goals__', label: 'Goals', dot: '#0d9488', bg: '#f0fdfa', color: '#0d9488', count: goalTotal, pct: goalPct, total: apps.length, totalLabel: 'tổng apps' },
+          ...GOAL_STATUSES.map(s => {
+            const count = apps.filter(a => (a.status || '').toUpperCase() === s.value).length
+            const pct = goalTotal ? Math.round(count / goalTotal * 100) : 0
+            return { ...s, count, pct, total: goalTotal, totalLabel: 'tổng' }
+          }),
+        ]
+        return (
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            {allCards.map(s => {
+              const isGoals = s.value === '__goals__'
+              return isGoals ? (
+                /* Goals — hero card */
+                <div key={s.value}
+                  style={{ gridColumn: 'span 1', padding: '18px 20px', borderRadius: 16, background: 'linear-gradient(135deg, #ccfbf1 0%, #99f6e4 100%)', border: '1px solid #5eead4', boxShadow: '0 4px 16px rgba(13,148,136,0.12)', transition: 'all 0.15s', cursor: 'default', position: 'relative', overflow: 'hidden' }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(13,148,136,0.22)' }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 16px rgba(13,148,136,0.12)' }}
+                >
+                  {/* Decorative ring */}
+                  <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, borderRadius: '50%', border: '2px solid rgba(13,148,136,0.15)' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Goals</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(13,148,136,0.12)', color: '#0d9488' }}>{s.pct}%</span>
+                  </div>
+                  <p style={{ fontSize: 36, fontWeight: 800, fontFamily: 'monospace', color: '#0d9488', margin: 0, lineHeight: 1.1 }}>{loading ? '—' : s.count}</p>
+                  <div style={{ marginTop: 10, height: 4, borderRadius: 4, background: 'rgba(13,148,136,0.15)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: 4, background: 'linear-gradient(90deg, #0d9488, #2dd4bf)', width: `${s.pct}%`, transition: 'width 0.5s' }} />
+                  </div>
+                  <p style={{ fontSize: 11, color: '#0f766e', marginTop: 6, opacity: 0.7 }}>/ {s.total} tổng apps</p>
+                </div>
+              ) : (
+                <div key={s.value} className="card p-4 transition-all duration-150 cursor-default"
+                  style={{ borderLeft: `3px solid ${s.dot}` }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.10)' }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#94a3b8' }}>{s.label}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: s.bg, color: s.color }}>{s.pct}%</span>
+                  </div>
+                  <p className="text-3xl font-bold font-mono" style={{ color: s.color }}>{loading ? '—' : s.count}</p>
+                  <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: '#f1f5f9' }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${s.pct}%`, background: s.dot }} />
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: '#94a3b8' }}>/ {s.total} {s.totalLabel}</p>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
+
+      {/* Filters — hidden in Goals view */}
+      {!isGoalsView && <div className="card px-2.5 py-2 flex flex-nowrap gap-1.5 items-center overflow-x-auto">
         <input
           className="input text-xs py-1 px-2 shrink-0"
           style={{ width: 168 }}
@@ -366,7 +459,7 @@ export default function Apps() {
             onClick={() => { setSearch(''); setFilterPlatform(''); setFilterTimeline(''); setFilterStatus(''); setFilterRequest(false); setFilterCrash(false); setFilterConfigNoti([]); setFilterIap(''); setFilterFlag([]) }}
           >Xoá filter</button>
         )}
-      </div>
+      </div>}
 
       {/* Table */}
       <div className="card overflow-hidden">
@@ -410,10 +503,10 @@ export default function Apps() {
                   <tr
                     key={a.id}
                     className="cursor-pointer transition-colors"
-                    style={{ ':hover': {} }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f0fdf4'}
-                    onMouseLeave={e => e.currentTarget.style.background = ''}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#f0fdf9' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '' }}
                     onClick={() => setDetailApp(a)}
+                    style={{ borderLeft: `3px solid ${ROW_BORDER[(a.status || '').toUpperCase()] || '#e2e8f0'}` }}
                   >
                     <td className="px-4 py-3 font-mono text-xs w-10" style={{ color: '#94a3b8' }}>{i + 1}</td>
                     <td className="px-4 py-3">
@@ -501,14 +594,6 @@ export default function Apps() {
         <AppDetailModal app={detailApp} onClose={() => setDetailApp(null)} />
       )}
 
-      {accountSidebar && (
-        <StoreAccountSidebar
-          account={accountSidebar}
-          apps={apps || []}
-          onClose={() => setAccountSidebar(null)}
-          onSelectApp={a => { setAccountSidebar(null); setDetailApp(a) }}
-        />
-      )}
     </div>
   )
 }

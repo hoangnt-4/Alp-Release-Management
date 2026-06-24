@@ -1102,35 +1102,40 @@ function AdsChart({ appKey }) {
 
   return (
     <div>
-      {/* Row 1: View toggle + Import */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          {[{ v: 'chart', label: '▦ Biểu đồ' }, { v: 'table', label: '⊞ Bảng' }].map(({ v, label }) => (
+      {/* ── Toolbar row ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+        {/* View toggle — segmented */}
+        <div style={{ display: 'flex', borderRadius: 8, border: '1px solid #e2e8f0', overflow: 'hidden', flexShrink: 0 }}>
+          {[{ v: 'chart', icon: '▦', label: 'Biểu đồ' }, { v: 'table', icon: '⊞', label: 'Bảng' }].map(({ v, icon, label }) => (
             <button key={v} onClick={() => setViewMode(v)}
-              style={{ padding: '5px 14px', fontSize: 12, fontWeight: 500, border: 'none', cursor: 'pointer',
-                background: viewMode === v ? '#0d9488' : '#fff', color: viewMode === v ? '#fff' : '#64748b' }}>
-              {label}
+              style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s',
+                background: viewMode === v ? '#0d9488' : '#fff',
+                color: viewMode === v ? '#fff' : '#64748b' }}>
+              <span style={{ fontSize: 11 }}>{icon}</span>{label}
             </button>
           ))}
         </div>
-        {saveStatus === 'saving'  && <span style={{ fontSize: 11, color: '#94a3b8' }}>💾 Đang lưu…</span>}
-        {saveStatus === 'saved'   && <span style={{ fontSize: 11, color: '#16a34a' }}>✓ Đã lưu vào Supabase</span>}
-        {saveStatus === 'updated' && <span style={{ fontSize: 11, color: '#0d9488' }}>↻ Đã cập nhật dữ liệu</span>}
+
+        {/* Status messages */}
+        {saveStatus === 'saving'  && <span style={{ fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>💾 Đang lưu…</span>}
+        {saveStatus === 'saved'   && <span style={{ fontSize: 11, color: '#16a34a', display: 'flex', alignItems: 'center', gap: 4 }}>✓ Đã lưu vào Supabase</span>}
+        {saveStatus === 'updated' && <span style={{ fontSize: 11, color: '#0d9488', display: 'flex', alignItems: 'center', gap: 4 }}>↻ Đã cập nhật</span>}
         {saveStatus === 'error'   && <span style={{ fontSize: 11, color: '#ef4444' }}>⚠ Lưu thất bại</span>}
-        {deleteStatus === 'done' && <span style={{ fontSize: 11, color: '#16a34a' }}>✓ Đã xoá</span>}
-        {dbError && !saveStatus  && <span style={{ fontSize: 11, color: '#f59e0b' }} title={dbError}>⚠ Không kết nối được Supabase</span>}
+        {deleteStatus === 'done'  && <span style={{ fontSize: 11, color: '#16a34a' }}>✓ Đã xoá</span>}
+        {dbError && !saveStatus   && <span style={{ fontSize: 11, color: '#f59e0b' }} title={dbError}>⚠ Không kết nối Supabase</span>}
+
+        {/* Right actions */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
           {hasDbData && (
             <button onClick={openDeleteModal}
-              style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff', color: '#ef4444', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              ⚙ Quản lý dữ liệu
+              style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #fecaca', background: '#fff5f5', color: '#ef4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 11 }}>⚙</span> Quản lý dữ liệu
             </button>
           )}
           <AdsUploader {...uploaderProps} />
           {hasDbData && viewMode === 'table' && (
-            <button onClick={() => setFullTable(true)}
-              title="Xem bảng toàn màn hình"
-              style={{ padding: '5px 8px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 13, cursor: 'pointer', lineHeight: 1 }}>
+            <button onClick={() => setFullTable(true)} title="Xem bảng toàn màn hình"
+              style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 13, cursor: 'pointer', lineHeight: 1 }}>
               ⛶
             </button>
           )}
@@ -1162,52 +1167,67 @@ function AdsChart({ appKey }) {
         document.body
       )}
 
-      {/* Row 2: Type filter chips */}
-      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 14 }}>
-        {['all', ...types].map(t => (
-          <button key={t} onClick={() => setFilterType(t)}
-            style={{ padding: '4px 11px', borderRadius: 20, fontSize: 11, fontWeight: 500, cursor: 'pointer', border: '1px solid',
-              background: filterType === t ? (t === 'all' ? '#0d9488' : TYPE_COLOR[t]) : 'transparent',
-              color: filterType === t ? '#fff' : (t === 'all' ? '#64748b' : TYPE_COLOR[t]),
-              borderColor: t === 'all' ? (filterType === t ? '#0d9488' : '#e2e8f0') : `${TYPE_COLOR[t]}80`,
-            }}>
-            {t === 'all' ? 'Tất cả' : t}
-          </button>
-        ))}
-      </div>
-
-      {/* Metric tabs (chart mode only) */}
-      {viewMode === 'chart' && (
-        <div style={{ display: 'flex', gap: 4, marginBottom: 14, overflowX: 'auto', paddingBottom: 2, flexWrap: 'wrap' }}>
-          {ADS_METRICS.map(m => (
-            <button key={m.key} onClick={() => setMetricKey(m.key)}
-              style={{ padding: '4px 12px', borderRadius: 6, fontSize: 11, fontWeight: metricKey === m.key ? 600 : 400, cursor: 'pointer', border: '1px solid', whiteSpace: 'nowrap',
-                background: metricKey === m.key ? '#eff6ff' : 'transparent',
-                color: metricKey === m.key ? '#3b82f6' : '#64748b',
-                borderColor: metricKey === m.key ? '#bfdbfe' : '#e2e8f0',
-              }}>
-              {m.label}
-            </button>
-          ))}
+      {/* ── Filter row: type chips + metric tabs ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+        {/* Ad type pills */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Loại</span>
+          {['all', ...types].map(t => {
+            const isActive = filterType === t
+            const activeColor = t === 'all' ? '#0d9488' : TYPE_COLOR[t]
+            return (
+              <button key={t} onClick={() => setFilterType(t)}
+                style={{
+                  padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  border: `1.5px solid ${isActive ? activeColor : '#e2e8f0'}`,
+                  background: isActive ? activeColor : '#fff',
+                  color: isActive ? '#fff' : (t === 'all' ? '#64748b' : TYPE_COLOR[t]),
+                  transition: 'all 0.15s',
+                }}>
+                {t === 'all' ? 'Tất cả' : t}
+              </button>
+            )
+          })}
         </div>
-      )}
+
+        {/* Metric underline tabs */}
+        {viewMode === 'chart' && (
+          <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #f1f5f9', overflowX: 'auto' }}>
+            {ADS_METRICS.map(m => (
+              <button key={m.key} onClick={() => setMetricKey(m.key)}
+                style={{
+                  padding: '8px 14px', fontSize: 12, fontWeight: metricKey === m.key ? 600 : 400,
+                  cursor: 'pointer', border: 'none', whiteSpace: 'nowrap', background: 'transparent',
+                  color: metricKey === m.key ? '#0d9488' : '#64748b',
+                  borderBottom: metricKey === m.key ? '2px solid #0d9488' : '2px solid transparent',
+                  marginBottom: -1, transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (metricKey !== m.key) e.currentTarget.style.color = '#0f172a' }}
+                onMouseLeave={e => { if (metricKey !== m.key) e.currentTarget.style.color = '#64748b' }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Empty state */}
       {!months.length && (
-        <div style={{ padding: '40px 16px', textAlign: 'center', color: '#94a3b8' }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>📊</div>
-          <p style={{ fontSize: 13, margin: 0 }}>Chưa có dữ liệu — nhấn <b>↑ Import</b> để upload file</p>
+        <div style={{ padding: '48px 16px', textAlign: 'center', background: '#f8fafc', borderRadius: 12, border: '1px dashed #e2e8f0' }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
+          <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Chưa có dữ liệu — nhấn <b style={{ color: '#0d9488' }}>↑ Import</b> để upload file</p>
         </div>
       )}
 
       {!!months.length && <>
-        {/* Period legend */}
-        <div style={{ display: 'flex', gap: 14, marginBottom: 12, flexWrap: 'wrap' }}>
+        {/* Period legend — badge style */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
           {months.map((m, i) => (
-            <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#64748b' }}>
-              <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: MONTH_COLORS[i % MONTH_COLORS.length] }} />
-              <span style={{ fontWeight: 600 }}>{fmtAdPeriod(m)}</span>
-              {m.length === 8 && <span style={{ fontSize: 10, color: '#94a3b8' }}>({fmtAdMonth(m)})</span>}
+            <div key={m} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 20, background: `${MONTH_COLORS[i % MONTH_COLORS.length]}18`, border: `1px solid ${MONTH_COLORS[i % MONTH_COLORS.length]}40` }}>
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: MONTH_COLORS[i % MONTH_COLORS.length], flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: MONTH_COLORS[i % MONTH_COLORS.length] }}>{fmtAdPeriod(m)}</span>
+              {m.length === 8 && <span style={{ fontSize: 10, color: '#94a3b8' }}>{fmtAdMonth(m)}</span>}
             </div>
           ))}
         </div>
@@ -1630,7 +1650,7 @@ export default function Monet() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: 'var(--font-sans)' }}>
 
       {/* Top bar: search */}
-      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--color-border-secondary)', flexShrink: 0, zIndex: 200, position: 'relative', background: 'var(--color-background-primary)' }}>
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', flexShrink: 0, zIndex: 200, position: 'relative', background: '#fff' }}>
         <div style={{ position: 'relative', maxWidth: 480 }}>
           {/* Search icon */}
           <svg style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
@@ -1641,15 +1661,15 @@ export default function Monet() {
           <input
             ref={inputRef}
             style={{
-              width: '100%', height: 44,
+              width: '100%', height: 40,
               paddingLeft: 40, paddingRight: selectedApp ? 100 : 14,
-              border: `1.5px solid ${showDrop ? '#0d9488' : 'var(--color-border-secondary)'}`,
+              border: `1.5px solid ${showDrop ? '#0d9488' : '#e2e8f0'}`,
               borderRadius: 10,
-              background: 'var(--color-background-primary)',
-              color: 'var(--color-text-primary)',
+              background: '#fff',
+              color: '#0f172a',
               fontSize: 14,
               outline: 'none',
-              boxShadow: showDrop ? '0 0 0 3px rgba(13,148,136,0.12)' : 'none',
+              boxShadow: showDrop ? '0 0 0 3px rgba(13,148,136,0.10)' : '0 1px 3px rgba(0,0,0,0.05)',
               transition: 'border-color 0.15s, box-shadow 0.15s',
             }}
             placeholder="Find any app..."
@@ -1712,11 +1732,11 @@ export default function Monet() {
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {!selectedApp ? (
           /* ── Overview: all apps table ── */
-          <div className="p-3 md:p-5">
-            <div className="card" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ padding: '14px 16px 10px', borderBottom: '1px solid var(--color-border-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>Tổng quan Monet</p>
-                <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Nhấn vào hàng để xem chi tiết</span>
+          <div style={{ padding: '20px' }}>
+            <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#64748b', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Tổng quan Monet</p>
+                <span style={{ fontSize: 11, color: '#94a3b8' }}>Nhấn vào hàng để xem chi tiết</span>
               </div>
               <div style={{ overflowY: 'auto', flex: 1 }}>
                 <OverviewTable monetMap={monetMap} apps={uniqueApps} onSelectApp={selectApp} />
@@ -1727,26 +1747,31 @@ export default function Monet() {
           /* ── App detail view ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
-            {/* App header + stats — combined hero */}
-            <div style={{ background: 'var(--color-background-primary)', borderBottom: '1px solid var(--color-border-secondary)' }}>
-              {/* Top row: identity + actions */}
-              <div style={{ padding: '14px 20px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 12, background: dc, color: 'white', fontSize: 17, fontWeight: 700, flexShrink: 0 }}>{isA ? 'A' : 'i'}</span>
+            {/* ── Hero header — dark gradient band ── */}
+            <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', padding: '18px 20px 16px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                {/* App icon */}
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 48, height: 48, borderRadius: 14, background: dc, color: 'white', fontSize: 20, fontWeight: 700, flexShrink: 0, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>{isA ? 'A' : 'i'}</span>
+
+                {/* Identity */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Row 1: app name + status + platform */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>{selectedApp.alpId || selectedApp.hnId}</p>
+                    <p style={{ fontSize: 16, fontWeight: 700, color: '#fff', margin: 0 }}>{selectedApp.alpId || selectedApp.hnId}</p>
                     {selectedApp.status && (
-                      <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, background: selectedApp.status === 'RUNNING' ? 'rgba(34,197,94,0.12)' : 'rgba(148,163,184,0.12)', color: selectedApp.status === 'RUNNING' ? '#22c55e' : '#94a3b8', fontWeight: 600, letterSpacing: '0.02em' }}>
+                      <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: selectedApp.status === 'RUNNING' ? 'rgba(34,197,94,0.2)' : 'rgba(148,163,184,0.15)', color: selectedApp.status === 'RUNNING' ? '#4ade80' : '#94a3b8', fontWeight: 600, letterSpacing: '0.03em', border: `1px solid ${selectedApp.status === 'RUNNING' ? 'rgba(74,222,128,0.3)' : 'rgba(148,163,184,0.2)'}` }}>
                         {selectedApp.status}
                       </span>
                     )}
-                    <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 20, background: `${dc}14`, color: dc, fontWeight: 600 }}>{isA ? 'Android' : 'iOS'}</span>
+                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: `${dc}25`, color: dc, fontWeight: 600, border: `1px solid ${dc}40` }}>{isA ? 'Android' : 'iOS'}</span>
+                    {monetData?.priority && (
+                      <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: `${getPriorityColor(monetData.priority)}20`, color: getPriorityColor(monetData.priority), fontWeight: 700, border: `1px solid ${getPriorityColor(monetData.priority)}40` }}>
+                        {monetData.priority}
+                      </span>
+                    )}
                   </div>
-                  {/* Row 2: HN ID + store account + priority */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
                     {selectedApp.hnId && selectedApp.alpId && (
-                      <p style={{ fontSize: 11, color: 'var(--color-text-secondary)', margin: 0 }}>{selectedApp.hnId}</p>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>{selectedApp.hnId}</span>
                     )}
                     {selectedApp.storeAccount && selectedApp.storeAccount !== '--' && (() => {
                       const ACCOUNT_COLORS = ['#60a5fa','#34d399','#f472b6','#a78bfa','#fb923c','#2dd4bf','#facc15','#f87171']
@@ -1754,133 +1779,130 @@ export default function Monet() {
                       const acColor = ACCOUNT_COLORS[acIdx]
                       return (
                         <button onClick={() => setShowAccountPanel(true)}
-                          style={{ fontSize: 10, padding: '1px 7px', borderRadius: 20, background: `${acColor}14`, border: `1px solid ${acColor}30`, cursor: 'pointer', fontWeight: 500 }}
+                          style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontWeight: 500, color: 'rgba(255,255,255,0.7)' }}
                         >
-                          <span style={{ color: 'var(--color-text-secondary)', fontWeight: 400 }}>by </span>
+                          <span style={{ color: 'rgba(255,255,255,0.35)' }}>by </span>
                           <span style={{ color: acColor, fontWeight: 600 }}>{selectedApp.storeAccount}</span>
                         </button>
                       )
                     })()}
-                    {monetData?.priority && (
-                      <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 20, background: `${getPriorityColor(monetData.priority)}14`, color: getPriorityColor(monetData.priority), fontWeight: 600 }}>
-                        {monetData.priority}
-                      </span>
-                    )}
                   </div>
                 </div>
-                <button onClick={() => setDetailApp(selectedApp)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', borderRadius: 8, background: 'var(--color-background-secondary)', border: '1px solid var(--color-border-secondary)', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}
-                  onMouseEnter={e => e.currentTarget.style.color = 'var(--color-text-primary)'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'var(--color-text-secondary)'}
-                >Chi tiết <span style={{ fontSize: 13 }}>→</span></button>
-              </div>
 
-              {/* Stats row */}
-              {summary && (
-                <div style={{ display: 'flex', gap: 10, padding: '10px 16px', borderTop: '1px solid var(--color-border-secondary)', background: 'var(--color-background-secondary)' }}>
-                  {[
-                    { label: 'Active User',  value: fmtInstall(summary.latestInstall), sub: 'tháng gần nhất', color: '#2dd4bf' },
-                    { label: 'Avg AU',       value: fmtInstall(summary.avgInstall != null ? Math.round(summary.avgInstall) : null), sub: 'trung bình', color: '#60a5fa' },
-                    { label: 'CR',           value: fmtCR(summary.latestCR), sub: 'tháng gần nhất', color: '#fb923c' },
-                    { label: 'Avg CR',       value: fmtCR(summary.avgCR), sub: 'trung bình', color: '#a78bfa' },
-                    { label: 'Months',       value: String(summary.nMonths), sub: 'có data', color: '#94a3b8' },
-                  ].map((c) => (
-                    <div key={c.label} style={{ flex: 1, padding: '10px 14px', borderRadius: 10, background: 'var(--color-background-primary)', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                      <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>{c.label}</p>
-                      <p style={{ fontSize: 18, fontWeight: 700, color: c.color, fontFamily: 'var(--font-mono)', margin: '0 0 2px' }}>{c.value}</p>
-                      <p style={{ fontSize: 10, color: 'var(--color-text-secondary)', margin: 0 }}>{c.sub}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+                {/* Chi tiết button */}
+                <button onClick={() => setDetailApp(selectedApp)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.75)', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 500, transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)'; e.currentTarget.style.color = '#fff' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)' }}
+                >Chi tiết <span>→</span></button>
+              </div>
             </div>
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', gap: 6, padding: '10px 16px', borderBottom: '1px solid var(--color-border-secondary)', background: 'var(--color-background-primary)', flexShrink: 0 }}>
+            {/* ── Stats cards row ── */}
+            {summary && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, padding: '14px 20px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                {[
+                  { label: 'ACTIVE USER',  value: fmtInstall(summary.latestInstall), sub: 'tháng gần nhất', color: '#0d9488', dot: '#2dd4bf' },
+                  { label: 'AVG AU',       value: fmtInstall(summary.avgInstall != null ? Math.round(summary.avgInstall) : null), sub: 'trung bình', color: '#2563eb', dot: '#60a5fa' },
+                  { label: 'CR',           value: fmtCR(summary.latestCR), sub: 'tháng gần nhất', color: '#ea580c', dot: '#fb923c' },
+                  { label: 'AVG CR',       value: fmtCR(summary.avgCR), sub: 'trung bình', color: '#7c3aed', dot: '#a78bfa' },
+                  { label: 'MONTHS',       value: String(summary.nMonths), sub: 'có data', color: '#475569', dot: '#94a3b8' },
+                ].map((c) => (
+                  <div key={c.label}
+                    style={{ padding: '12px 14px', borderRadius: 12, background: '#fff', border: '1px solid #e2e8f0', borderLeft: `3px solid ${c.dot}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', transition: 'all 0.15s', cursor: 'default' }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.08)' }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.04)' }}
+                  >
+                    <p style={{ fontSize: 9, color: '#94a3b8', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{c.label}</p>
+                    <p style={{ fontSize: 20, fontWeight: 800, color: c.color, fontFamily: 'monospace', margin: '0 0 3px', lineHeight: 1 }}>{c.value}</p>
+                    <p style={{ fontSize: 10, color: '#94a3b8', margin: 0 }}>{c.sub}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── Tab navigation — underline style ── */}
+            <div style={{ display: 'flex', gap: 0, padding: '0 20px', background: '#fff', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
               {TABS.map(t => (
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
                   style={{
-                    padding: '6px 16px',
+                    padding: '12px 18px',
                     fontSize: 13,
                     fontWeight: tab === t.key ? 600 : 400,
-                    color: tab === t.key ? '#0d9488' : 'var(--color-text-secondary)',
-                    background: tab === t.key ? 'transparent' : 'transparent',
-                    border: tab === t.key ? '2px solid #0d9488' : '2px solid #e2e8f0',
-                    borderRadius: 8,
+                    color: tab === t.key ? '#0d9488' : '#64748b',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: tab === t.key ? '2px solid #0d9488' : '2px solid transparent',
                     cursor: 'pointer',
                     transition: 'all 0.15s',
                     whiteSpace: 'nowrap',
+                    marginBottom: -1,
                   }}
-                  onMouseEnter={e => { if (tab !== t.key) e.currentTarget.style.borderColor = '#94a3b8' }}
-                  onMouseLeave={e => { if (tab !== t.key) e.currentTarget.style.borderColor = '#e2e8f0' }}
+                  onMouseEnter={e => { if (tab !== t.key) e.currentTarget.style.color = '#0f172a' }}
+                  onMouseLeave={e => { if (tab !== t.key) e.currentTarget.style.color = '#64748b' }}
                 >
                   {t.label}
                 </button>
               ))}
             </div>
 
-            {/* Chart area */}
-            <div style={{ padding: '20px 20px 0' }}>
-                {tab === 'install' && (sorted.length === 0
-                  ? <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Chưa có dữ liệu Monet cho app này</div>
-                  : <>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>Monthly active</p>
+            {/* ── Chart / content area ── */}
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {tab === 'install' && (sorted.length === 0
+                ? <div style={{ padding: '48px 24px', textAlign: 'center', color: '#94a3b8', fontSize: 13, background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0' }}>Chưa có dữ liệu Monet cho app này</div>
+                : <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Monthly Active Users</p>
                     <InstallBarChart sorted={sorted} />
-                  </>
-                )}
-                {tab === 'ads' && (
-                  <>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>Ads requests theo tháng</p>
-                    <AdsChart appKey={(selectedApp?.alpId || selectedApp?.hnId || '').toLowerCase()} />
-                  </>
-                )}
-                {tab === 'engage' && (
-                  <>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>Thời gian sử dụng trung bình</p>
-                    <EngageTab appKey={(selectedApp?.alpId || selectedApp?.hnId || '').toLowerCase()} />
-                  </>
-                )}
-                {tab === 'cr' && (sorted.length === 0
-                  ? <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Chưa có dữ liệu Monet cho app này</div>
-                  : <>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 16 }}>Convert Rate theo tháng</p>
+                  </div>
+              )}
+              {tab === 'cr' && (sorted.length === 0
+                ? <div style={{ padding: '48px 24px', textAlign: 'center', color: '#94a3b8', fontSize: 13, background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0' }}>Chưa có dữ liệu Monet cho app này</div>
+                : <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Convert Rate</p>
                     <CRLineChart sorted={sorted} />
-                  </>
-                )}
-                {tab === 'note' && (() => {
-                  const appKey = (selectedApp?.alpId || selectedApp?.hnId || '').toLowerCase()
-                  const monetNote = monetMap[appKey]?.note
-                  return (
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 12 }}>Note</p>
-                      {monetNote ? (
-                        <div style={{
-                          fontSize: 13, color: 'var(--color-text-primary)', lineHeight: 1.7,
-                          whiteSpace: 'pre-wrap', background: 'var(--color-background-secondary)',
-                          border: '1px solid var(--color-border-secondary)', borderRadius: 8,
-                          padding: '12px 14px',
-                        }}>
-                          {monetNote}
-                        </div>
-                      ) : (
-                        <p style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Chưa có note — thêm vào bảng Monet cột "Note"</p>
-                      )}
-                    </div>
-                  )
-                })()}
-            </div>
-
-            {/* Data table */}
-            {sorted.length > 0 && tab !== 'ads' && tab !== 'note' && tab !== 'engage' && (
-              <div className="mx-4 md:mx-5 my-4 card" style={{ overflow: 'hidden' }}>
-                <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--color-border-secondary)' }}>
-                  <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-secondary)' }}>Chi tiết theo tháng</p>
+                  </div>
+              )}
+              {tab === 'ads' && (
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ads Requests</p>
+                  <AdsChart appKey={(selectedApp?.alpId || selectedApp?.hnId || '').toLowerCase()} />
                 </div>
-                <MonthTable sorted={sorted} activeTab={tab} />
-              </div>
-            )}
+              )}
+              {tab === 'engage' && (
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', margin: '0 0 16px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Avg Session Time</p>
+                  <EngageTab appKey={(selectedApp?.alpId || selectedApp?.hnId || '').toLowerCase()} />
+                </div>
+              )}
+              {tab === 'note' && (() => {
+                const appKey = (selectedApp?.alpId || selectedApp?.hnId || '').toLowerCase()
+                const monetNote = monetMap[appKey]?.note
+                return (
+                  <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', padding: '16px 20px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Note</p>
+                    {monetNote ? (
+                      <div style={{ fontSize: 13, color: '#0f172a', lineHeight: 1.8, whiteSpace: 'pre-wrap', background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 8, padding: '14px 16px' }}>
+                        {monetNote}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 13, color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>Chưa có note — thêm vào bảng Monet cột "Note"</p>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* Data table */}
+              {sorted.length > 0 && tab !== 'ads' && tab !== 'note' && tab !== 'engage' && (
+                <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                  <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Chi tiết theo tháng</p>
+                  </div>
+                  <MonthTable sorted={sorted} activeTab={tab} />
+                </div>
+              )}
+            </div>
 
           </div>
         )}

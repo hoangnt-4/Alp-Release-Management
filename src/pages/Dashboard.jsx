@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useReleasesStore } from '../hooks/useReleasesStore'
 import { createRelease, updateRelease, deleteRelease } from '../lib/lark'
 import { addEvent } from '../lib/activityHistory'
+import { REVIEWER_OPTIONS, DEFAULT_REVIEWER, DEFAULT_STATUS } from '../lib/features'
 import StatusBadge from '../components/StatusBadge'
 import AppCombobox from '../components/AppCombobox'
 import AppDetailModal from '../components/AppDetailModal'
@@ -34,12 +35,31 @@ export default function Dashboard() {
 
   // Review modal
   const [reviewModal, setReviewModal] = useState(null)
-  const [reviewForm, setReviewForm]   = useState({ status: 'Checked', reviewNotes: '', lastCheckedDate: '', reviewer: 'Hieu' })
+  const [reviewForm, setReviewForm]   = useState({ status: DEFAULT_STATUS, reviewNotes: '', lastCheckedDate: '', reviewer: DEFAULT_REVIEWER })
   const [reviewSaving, setReviewSaving] = useState(false)
   const [detailApp, setDetailApp]       = useState(null)
 
+  // Quick filter
+  const [activeFilter, setActiveFilter] = useState('all')
+
+  // Inline note editing
+  const [editingNote, setEditingNote] = useState(null)
+  const [noteValue,   setNoteValue]   = useState('')
+  const startEditNote = (r) => { setEditingNote(r.id); setNoteValue(r.reviewNotes || '') }
+  const saveNote = async (r) => {
+    if (noteValue === (r.reviewNotes || '')) { setEditingNote(null); return }
+    const today = new Date().toISOString().slice(0, 10)
+    const patch = {
+      reviewNotes: noteValue,
+      ...(!r.status          ? { status: DEFAULT_STATUS }   : {}),
+      ...(!r.lastCheckedDate ? { lastCheckedDate: today }    : {}),
+      ...(!r.reviewer        ? { reviewer: DEFAULT_REVIEWER } : {}),
+    }
+    await updateRelease(r.id, patch); setEditingNote(null); refresh()
+  }
+
   const openReview = (r) => {
-    setReviewForm({ status: r.status || 'Checked', reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10), reviewer: r.reviewer || 'Hieu' })
+    setReviewForm({ status: r.status || DEFAULT_STATUS, reviewNotes: r.reviewNotes || '', lastCheckedDate: r.lastCheckedDate || new Date().toISOString().slice(0, 10), reviewer: r.reviewer || DEFAULT_REVIEWER })
     setReviewModal(r)
   }
   const handleSaveReview = async () => {
@@ -80,10 +100,24 @@ export default function Dashboard() {
     finally { setEditSaving(false) }
   }
 
+  // Trend vs last week
+  const lastWeekCount = releases.filter(r => {
+    if (!r.releaseDate) return false
+    const d = (new Date() - new Date(r.releaseDate)) / 86400000
+    return d >= 7 && d < 14
+  }).length
+  const weekTrend = (counts.thisWeek || 0) - lastWeekCount
+
   const recent = [...releases]
     .sort((a, b) => (b.releaseDate || '').localeCompare(a.releaseDate || ''))
-    .filter(r => !search || `${r.appName || r.app} ${r.hnId} ${r.version} ${r.releaseNote}`.toLowerCase().includes(search.toLowerCase()))
-    .slice(0, 15)
+    .filter(r => {
+      if (search && !`${r.appName || r.app} ${r.hnId} ${r.version} ${r.releaseNote}`.toLowerCase().includes(search.toLowerCase())) return false
+      if (activeFilter === 'pending') return !r.status
+      if (activeFilter === 'checked') return r.status === 'Checked' || r.status === 'Updated'
+      if (activeFilter === 'week') return r.releaseDate && (new Date() - new Date(r.releaseDate)) / 86400000 <= 7
+      return true
+    })
+    .slice(0, activeFilter === 'all' ? 15 : 100)
 
   const handleSelectApp = (app) => {
     setSelectedApp(app)
@@ -129,10 +163,10 @@ export default function Dashboard() {
   }
 
   const STATS = [
-    { label: 'TỔNG PHÁT HÀNH', value: counts.total,    sub: 'tất cả thời gian', color: '' },
-    { label: 'TUẦN NÀY',       value: counts.thisWeek, sub: '7 ngày qua',        color: '' },
-    { label: 'CHỜ REVIEW',     value: counts.pending,  sub: 'chưa có status',    color: '#f59e0b' },
-    { label: 'ĐÃ CHECKED',     value: counts.checked,  sub: 'checked + updated', color: '#0d9488' },
+    { label: 'TỔNG PHÁT HÀNH', value: counts.total,    sub: 'tất cả thời gian',  accent: '#94a3b8', numColor: '#0f172a' },
+    { label: 'TUẦN NÀY',       value: counts.thisWeek, sub: weekTrend > 0 ? `↑ ${weekTrend} so tuần trước` : weekTrend < 0 ? `↓ ${Math.abs(weekTrend)} so tuần trước` : 'bằng tuần trước', accent: '#3b82f6', numColor: '#2563eb' },
+    { label: 'CHỜ REVIEW',     value: counts.pending,  sub: 'chưa có status',    accent: '#f59e0b', numColor: '#d97706' },
+    { label: 'ĐÃ CHECKED',     value: counts.checked,  sub: 'checked + updated', accent: '#0d9488', numColor: '#0d9488' },
   ]
 
   return (
@@ -154,86 +188,132 @@ export default function Dashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {STATS.map(s => (
-          <div key={s.label} className="card p-4">
-            <p className="text-xs font-semibold tracking-wide mb-1" style={{ color: '#94a3b8' }}>{s.label}</p>
-            <p className="text-3xl font-bold font-mono" style={{ color: s.color || '#1e2235' }}>
+          <div key={s.label} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '16px 18px', borderLeft: `3px solid ${s.accent}`, borderRadius: 0, transition: 'all 0.15s', cursor: 'default' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.08)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '' }}
+          >
+            <p style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>{s.label}</p>
+            <p style={{ fontSize: 30, fontWeight: 800, fontFamily: 'monospace', color: s.numColor, lineHeight: 1 }}>
               {loading ? '—' : s.value}
             </p>
-            <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>{s.sub}</p>
+            <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 6 }}>{s.sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Recent */}
-      <div className="card overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 gap-2 border-b border-surface-200">
-          <p className="text-sm font-semibold">15 bản phát hành gần nhất</p>
-          <div className="flex items-center gap-3">
-            <input
-              className="input w-full sm:w-48 text-xs py-1.5"
-              placeholder="Tìm theo tên app, version, mô tả..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-            <Link to="/history" className="text-sm font-medium" style={{ color: '#0d9488' }}>Xem tất cả →</Link>
+      {/* Recent releases */}
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+        {/* Section header */}
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          {/* Filter tabs */}
+          <div style={{ display: 'flex', gap: 0, borderRadius: 8, border: '1px solid #e2e8f0', overflow: 'hidden', flexShrink: 0 }}>
+            {[
+              { key: 'all',     label: 'Tất cả',      count: counts.total },
+              { key: 'pending', label: 'Chờ review',   count: counts.pending, color: '#d97706' },
+              { key: 'checked', label: 'Đã checked',   count: counts.checked, color: '#0d9488' },
+              { key: 'week',    label: 'Tuần này',     count: counts.thisWeek, color: '#2563eb' },
+            ].map((f, i) => (
+              <button key={f.key} onClick={() => setActiveFilter(f.key)}
+                style={{ padding: '6px 12px', fontSize: 12, fontWeight: activeFilter === f.key ? 700 : 500, border: 'none', borderLeft: i > 0 ? '1px solid #e2e8f0' : 'none', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.12s',
+                  background: activeFilter === f.key ? '#0f172a' : '#fff',
+                  color: activeFilter === f.key ? '#fff' : (f.color || '#64748b') }}>
+                {f.label} <span style={{ opacity: 0.7, fontSize: 11, fontFamily: 'monospace' }}>{loading ? '' : f.count}</span>
+              </button>
+            ))}
+          </div>
+          {/* Search + link */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ position: 'relative' }}>
+              <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="13" height="13" viewBox="0 0 14 14" fill="none">
+                <circle cx="6" cy="6" r="4" stroke="#94a3b8" strokeWidth="1.5"/><path d="M9 9L12 12" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <input style={{ height: 34, paddingLeft: 30, paddingRight: 10, width: 200, border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, background: '#fff', color: '#0f172a', outline: 'none' }}
+                placeholder="Tìm app, version, mô tả..." value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <Link to="/history" style={{ fontSize: 13, fontWeight: 600, color: '#0d9488', whiteSpace: 'nowrap', textDecoration: 'none' }}>Xem tất cả →</Link>
           </div>
         </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
             <thead>
-              <tr className="border-b border-surface-200 bg-surface-50 text-left">
-                {['#', 'Ngày', 'App Name', 'HN ID', 'Version', 'Roll-out', 'Mô tả', 'Status review', 'Review', 'Review Note', ''].map(h => (
-                  <th key={h} className="px-3 py-2.5 text-xs font-medium whitespace-nowrap" style={{ color: '#94a3b8' }}>{h}</th>
+              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                {['#', 'Ngày', 'App', 'HN ID', 'Version', 'Roll-out', 'Mô tả', 'Status', 'Review', 'Note', ''].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textAlign: 'left', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface-200">
+            <tbody>
               {loading ? (
-                <tr><td colSpan={11} className="px-3 py-8 text-center text-sm" style={{ color: '#94a3b8' }}>Đang tải...</td></tr>
+                <tr><td colSpan={11} style={{ padding: '32px 12px', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>Đang tải...</td></tr>
               ) : recent.length === 0 ? (
-                <tr><td colSpan={11} className="px-3 py-8 text-center text-sm" style={{ color: '#94a3b8' }}>Không có dữ liệu</td></tr>
-              ) : recent.map((r, i) => (
-                <tr key={r.id} className="hover:bg-surface-50 transition-colors">
-                  <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#94a3b8' }}>{i + 1}</td>
-                  <td className="px-3 py-2.5 font-mono text-xs whitespace-nowrap" style={{ color: '#64748b' }}>{r.releaseDate?.slice(0, 10) || '—'}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <PlatformBadge platform={r.platform} />
-                      <button onClick={() => openEditModal(r)} className="font-medium text-xs text-left hover:underline" style={{ color: '#1e2235' }}>{r.appName || r.app || '—'}</button>
-                      {(activities[r.hnId?.toLowerCase()] || activities[(r.appName || r.app)?.toLowerCase()])?.requestUpdate && (
-                        <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#fef3c7', color: '#d97706' }}>⚡</span>
+                <tr><td colSpan={11} style={{ padding: '32px 12px', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>Không có dữ liệu</td></tr>
+              ) : recent.map((r, i) => {
+                const borderColor = (r.status === 'Checked' || r.status === 'Updated') ? '#0d9488' : !r.status ? '#f59e0b' : '#e2e8f0'
+                const platform = typeof r.platform === 'object' ? (r.platform?.text || '') : (r.platform || '')
+                const isA = platform.toLowerCase().includes('android')
+                return (
+                  <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9', borderLeft: `3px solid ${borderColor}` }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                    onMouseLeave={e => e.currentTarget.style.background = ''}>
+                    <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 11, color: '#cbd5e1', whiteSpace: 'nowrap' }}>{i + 1}</td>
+                    <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>{r.releaseDate?.slice(5, 10) || '—'}</td>
+                    <td style={{ padding: '7px 10px', maxWidth: 200 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                        {platform
+                          ? <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, background: isA ? '#34a853' : '#007aff', color: '#fff', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{isA ? 'A' : 'i'}</span>
+                          : <span style={{ width: 22, height: 22, borderRadius: 6, background: '#f1f5f9', display: 'inline-block', flexShrink: 0 }} />
+                        }
+                        <button onClick={() => openEditModal(r)} style={{ fontSize: 13, fontWeight: 400, color: '#0f172a', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}
+                          onMouseEnter={e => e.currentTarget.style.color = '#0d9488'}
+                          onMouseLeave={e => e.currentTarget.style.color = '#0f172a'}>
+                          {r.appName || r.app || '—'}
+                        </button>
+                        {(activities[r.hnId?.toLowerCase()] || activities[(r.appName || r.app)?.toLowerCase()])?.requestUpdate && (
+                          <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#fef3c7', color: '#d97706', fontWeight: 600, flexShrink: 0 }}>⚡</span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' }}>{r.hnId || '—'}</td>
+                    <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}><span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 400, padding: '3px 8px', borderRadius: 5, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#0f172a' }}>{r.version || '—'}</span></td>
+                    <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}><RolloutBadge rollout={r.rollout} /></td>
+                    <td style={{ padding: '7px 10px', fontSize: 12, color: '#64748b', maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.releaseNote || <span style={{ color: '#e2e8f0' }}>—</span>}</td>
+                    <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}><StatusBadge status={r.status} /></td>
+                    <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>
+                      <button onClick={() => openReview(r)}
+                        style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#0d9488', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#0f766e'}
+                        onMouseLeave={e => e.currentTarget.style.background = '#0d9488'}>
+                        ✓ Review
+                      </button>
+                    </td>
+                    <td style={{ padding: '7px 10px', minWidth: 130, maxWidth: 180 }}>
+                      {editingNote === r.id ? (
+                        <input autoFocus value={noteValue} onChange={e => setNoteValue(e.target.value)}
+                          onBlur={() => saveNote(r)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveNote(r); if (e.key === 'Escape') setEditingNote(null) }}
+                          style={{ width: '100%', fontSize: 11, padding: '3px 7px', border: '1px solid #0d9488', borderRadius: 5, outline: 'none', color: '#0f172a', background: '#f0fdfa' }}
+                        />
+                      ) : (
+                        <div onClick={() => startEditNote(r)} style={{ cursor: 'text' }} title="Nhấn để chỉnh sửa note">
+                          {r.reviewNotes
+                            ? <span style={{ fontSize: 11, color: '#475569', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.reviewNotes}</span>
+                            : <span style={{ fontSize: 11, color: '#e2e8f0' }}>+ note…</span>}
+                          {r.lastCheckedDate && <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#cbd5e1', display: 'block' }}>{r.lastCheckedDate}</span>}
+                        </div>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5 font-mono text-xs" style={{ color: '#64748b' }}>{r.hnId || '—'}</td>
-                  <td className="px-3 py-2.5"><span className="font-mono text-xs px-1.5 py-0.5 rounded bg-surface-100">{r.version || '—'}</span></td>
-                  <td className="px-3 py-2.5"><RolloutBadge rollout={r.rollout} /></td>
-                  <td className="px-3 py-2.5 text-xs max-w-[160px] truncate" style={{ color: '#64748b' }}>{r.releaseNote || '—'}</td>
-                  <td className="px-3 py-2.5"><StatusBadge status={r.status} /></td>
-                  <td className="px-3 py-2.5">
-                    <button onClick={() => openReview(r)}
-                      className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg font-medium text-white"
-                      style={{ background: '#0d9488' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#0f766e'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#0d9488'}
-                    >✓ Review</button>
-                  </td>
-                  <td className="px-3 py-2.5 max-w-[160px]">
-                    {r.reviewNotes
-                      ? <span className="text-xs" style={{ color: '#64748b' }} title={r.reviewNotes}>{r.reviewNotes.length > 40 ? r.reviewNotes.slice(0, 40) + '…' : r.reviewNotes}</span>
-                      : <span className="text-xs" style={{ color: '#cbd5e1' }}>—</span>}
-                    {r.lastCheckedDate && (
-                      <p className="mt-0.5 font-mono" style={{ fontSize: 10, color: '#cbd5e1' }}>{r.lastCheckedDate}</p>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <button onClick={() => toggleWatchlist(r.id)}
-                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-surface-200 whitespace-nowrap transition-colors"
-                      style={{ color: watchlist.has(r.id) ? '#0d9488' : '#94a3b8', borderColor: watchlist.has(r.id) ? '#0d9488' : '' }}
-                    >{watchlist.has(r.id) ? '◉' : '○'} Lưu xem sau</button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td style={{ padding: '7px 8px' }}>
+                      <button onClick={() => toggleWatchlist(r.id)} title={watchlist.has(r.id) ? 'Bỏ lưu' : 'Lưu xem sau'}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, border: `1px solid ${watchlist.has(r.id) ? '#0d9488' : '#e2e8f0'}`, background: watchlist.has(r.id) ? '#f0fdfa' : 'transparent', color: watchlist.has(r.id) ? '#0d9488' : '#cbd5e1', cursor: 'pointer', fontSize: 13, transition: 'all 0.15s' }}
+                        onMouseEnter={e => { if (!watchlist.has(r.id)) { e.currentTarget.style.borderColor = '#94a3b8'; e.currentTarget.style.color = '#94a3b8' } }}
+                        onMouseLeave={e => { if (!watchlist.has(r.id)) { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#cbd5e1' } }}>
+                        {watchlist.has(r.id) ? '◉' : '○'}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -265,7 +345,7 @@ export default function Dashboard() {
               <div>
                 <label className="text-xs font-medium block mb-1" style={{ color: '#64748b' }}>Reviewer</label>
                 <select className="input" value={reviewForm.reviewer} onChange={e => setReviewForm(f => ({ ...f, reviewer: e.target.value }))}>
-                  {['Hieu', 'Hoa Nguyen', 'Tuan Hoang'].map(r => <option key={r} value={r}>{r}</option>)}
+                  {REVIEWER_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div>

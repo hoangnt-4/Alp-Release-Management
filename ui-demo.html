@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Release Manager — UI Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+/* ── Reset ────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Inter',system-ui,sans-serif;background:#f0f2f5;color:#111827;font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+
+/* ── Tokens ───────────────────────────────────────────────────── */
+:root{
+  --teal:     #0d9488;
+  --teal-lt:  #ccfbf1;
+  --teal-dk:  #0f766e;
+  --bg:       #f0f2f5;
+  --surface:  #ffffff;
+  --border:   #e5e7eb;
+  --border-lt:#f3f4f6;
+  --text-1:   #111827;
+  --text-2:   #374151;
+  --text-3:   #6b7280;
+  --text-4:   #9ca3af;
+  --text-5:   #d1d5db;
+  --sidebar:  #0c1220;
+  --sidebar2: #141e30;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow:   0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+  --shadow-lg:0 16px 48px rgba(0,0,0,.14),0 4px 16px rgba(0,0,0,.08);
+  --radius:   14px;
+  --radius-sm:8px;
+}
+
+/* ── Layout ───────────────────────────────────────────────────── */
+#app{display:flex;height:100vh;overflow:hidden}
+aside{width:228px;min-width:228px;background:var(--sidebar);display:flex;flex-direction:column;transition:width .22s cubic-bezier(.4,0,.2,1);overflow:hidden;border-right:1px solid rgba(255,255,255,.04)}
+aside.col{width:60px;min-width:60px}
+main{flex:1;overflow-y:auto;background:var(--bg)}
+
+/* ── Scrollbar ────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:2px}
+::-webkit-scrollbar-thumb:hover{background:#9ca3af}
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+.sb-head{display:flex;align-items:center;justify-content:space-between;padding:0 14px;height:60px;border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0}
+.sb-brand{display:flex;align-items:center;gap:10px;overflow:hidden}
+.sb-logo{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#0d9488,#0891b2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0;box-shadow:0 0 0 1px rgba(255,255,255,.15)}
+.sb-title{overflow:hidden;transition:opacity .2s,width .2s}
+.sb-title p{font-size:13.5px;font-weight:700;color:#f9fafb;white-space:nowrap;letter-spacing:-.2px}
+.sb-title small{font-size:10px;color:rgba(255,255,255,.28);white-space:nowrap}
+aside.col .sb-title{opacity:0;width:0}
+.sb-tog{background:none;border:1px solid rgba(255,255,255,.08);border-radius:6px;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);flex-shrink:0;transition:border-color .15s,color .15s}
+.sb-tog:hover{border-color:rgba(255,255,255,.2);color:rgba(255,255,255,.6)}
+
+.sb-nav{flex:1;overflow-y:auto;padding:10px 8px}
+.sb-sec{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.2);padding:0 10px;margin:14px 0 5px;white-space:nowrap;overflow:hidden;transition:opacity .2s}
+aside.col .sb-sec{opacity:0;pointer-events:none}
+
+.ni{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;font-size:12.5px;font-weight:500;cursor:pointer;color:rgba(255,255,255,.45);transition:background .15s,color .15s;white-space:nowrap;border:none;background:none;width:100%;text-align:left;position:relative}
+.ni:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.85)}
+.ni.on{background:linear-gradient(135deg,rgba(13,148,136,.3),rgba(8,145,178,.15));color:#5eead4;font-weight:600}
+.ni.on::before{content:'';position:absolute;left:0;top:25%;bottom:25%;width:3px;border-radius:0 3px 3px 0;background:var(--teal)}
+.ni svg{width:16px;height:16px;flex-shrink:0;stroke-width:1.7;transition:transform .15s}
+.ni:hover svg{transform:translateX(1px)}
+.ni .lbl{flex:1;overflow:hidden;transition:opacity .18s,width .18s}
+aside.col .ni .lbl{opacity:0;width:0}
+.ni-cnt{font-size:10px;background:rgba(255,255,255,.1);border-radius:20px;padding:1px 8px;color:rgba(255,255,255,.35);font-weight:600;flex-shrink:0;font-variant-numeric:tabular-nums;transition:opacity .2s}
+aside.col .ni-cnt{opacity:0;width:0;overflow:hidden}
+
+.sb-foot{padding:10px 8px 14px;border-top:1px solid rgba(255,255,255,.05);flex-shrink:0}
+.sb-user{display:flex;align-items:center;gap:10px;padding:9px 10px;overflow:hidden;margin-bottom:4px}
+.sb-av{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.sb-uinfo{overflow:hidden;transition:opacity .2s}
+.sb-uinfo p{font-size:11px;font-weight:600;color:#f9fafb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-uinfo small{font-size:9px;color:rgba(255,255,255,.25);white-space:nowrap}
+aside.col .sb-uinfo{opacity:0}
+
+/* ── Page scaffold ────────────────────────────────────────────── */
+.pg-head{padding:24px 28px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.pg-title{font-size:22px;font-weight:800;color:var(--text-1);letter-spacing:-.5px}
+.pg-sub{font-size:12px;color:var(--text-4);margin-top:3px}
+
+/* ── Buttons ──────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;border:none;border-radius:9px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-p{background:var(--teal);color:#fff;padding:9px 18px;box-shadow:0 2px 8px rgba(13,148,136,.35)}
+.btn-p:hover{background:var(--teal-dk);box-shadow:0 4px 12px rgba(13,148,136,.4);transform:translateY(-1px)}
+.btn-g{background:#fff;color:var(--text-2);padding:8px 16px;border:1.5px solid var(--border);box-shadow:var(--shadow-sm)}
+.btn-g:hover{background:#fafafa;border-color:#d1d5db}
+.btn-sm{font-size:11px;padding:5px 12px}
+
+/* ── Stats strip ──────────────────────────────────────────────── */
+.stat-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding:20px 28px 0}
+.stat-c{background:var(--surface);border-radius:var(--radius);border:1.5px solid var(--border);padding:16px 18px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow-sm);transition:box-shadow .15s,transform .15s}
+.stat-c:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+.stat-ic{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stat-ic svg{width:20px;height:20px;stroke-width:1.8}
+.stat-v{font-size:24px;font-weight:800;color:var(--text-1);letter-spacing:-.5px;line-height:1}
+.stat-l{font-size:11px;color:var(--text-4);margin-top:3px}
+.stat-d{font-size:10px;font-weight:600;margin-top:6px;padding:2px 7px;border-radius:20px;display:inline-block}
+.d-up{background:#dcfce7;color:#15803d}.d-dn{background:#fee2e2;color:#b91c1c}.d-neu{background:#f1f5f9;color:#64748b}
+
+/* ── Filter bar ───────────────────────────────────────────────── */
+.fbar{padding:18px 28px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fsearch{display:flex;align-items:center;gap:8px;padding:9px 14px;background:#fff;border:1.5px solid var(--border);border-radius:10px;min-width:260px;flex:0 0 260px;transition:border-color .2s,box-shadow .2s;box-shadow:var(--shadow-sm)}
+.fsearch:focus-within{border-color:var(--teal);box-shadow:0 0 0 3px rgba(13,148,136,.1)}
+.fsearch svg{width:14px;height:14px;stroke:var(--text-4);flex-shrink:0}
+.fsearch input{border:none;outline:none;font-size:12.5px;color:var(--text-1);background:transparent;width:100%;font-family:inherit}
+.fsearch input::placeholder{color:var(--text-4)}
+
+.chip{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;background:#fff;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-weight:500;color:var(--text-2);cursor:pointer;transition:all .15s;user-select:none;box-shadow:var(--shadow-sm)}
+.chip:hover{border-color:#9ca3af;background:#fafafa}
+.chip.on{background:linear-gradient(135deg,var(--teal),#0891b2);color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(13,148,136,.3)}
+.chip.on:hover{box-shadow:0 4px 12px rgba(13,148,136,.4);transform:translateY(-1px)}
+.chip svg{width:12px;height:12px;stroke:currentColor;opacity:.7}
+.factive{font-size:11.5px;color:var(--teal);font-weight:600;margin-left:4px}
+
+/* ── Card ─────────────────────────────────────────────────────── */
+.card{background:var(--surface);border-radius:var(--radius);border:1.5px solid var(--border);overflow:hidden;margin:16px 28px 0;box-shadow:var(--shadow-sm)}
+
+/* ── App table ────────────────────────────────────────────────── */
+.tbl{width:100%;border-collapse:collapse}
+.tbl thead tr{background:#fafafa;border-bottom:1.5px solid var(--border)}
+.tbl thead th{padding:10px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-4);text-align:left;white-space:nowrap;user-select:none}
+.tbl thead th:first-child{padding-left:20px}
+.tbl tbody tr{border-bottom:1px solid var(--border-lt);border-left:3px solid transparent;cursor:pointer;transition:background .1s}
+.tbl tbody tr:last-child{border-bottom:none}
+.tbl tbody tr:hover{background:#fafbff}
+.tbl tbody tr.acc{border-left-color:var(--teal)}
+.tbl tbody tr.dim{border-left-color:#e5e7eb}
+.tbl tbody tr.dim td{opacity:.5}
+.tbl td{padding:13px 16px;vertical-align:middle}
+.tbl td:first-child{padding-left:20px}
+
+/* App icon */
+.ai{position:relative;width:36px;height:36px;flex-shrink:0}
+.ai-bg{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.ai-fo{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:17px}
+
+.aname-row{display:flex;align-items:center;gap:11px}
+.aname-info .n{font-size:13px;font-weight:700;color:var(--text-1)}
+.aname-info .m{font-size:10px;color:var(--text-4);font-family:'SF Mono','Fira Code',monospace;margin-top:2px}
+.aname-info .badges{display:flex;gap:4px;margin-top:4px}
+
+/* Rollout mini */
+.ro-wrap{min-width:68px}
+.ro-num{font-size:12px;font-weight:700;color:var(--teal)}
+.ro-bar{height:4px;border-radius:2px;background:#e5e7eb;overflow:hidden;margin-top:4px}
+.ro-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--teal),#0891b2)}
+
+/* ── Badges ───────────────────────────────────────────────────── */
+.b{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:600;line-height:1.3;white-space:nowrap}
+.b-ios{background:#dbeafe;color:#1d4ed8}
+.b-and{background:#d1fae5;color:#065f46}
+.b-run{background:#d1fae5;color:#065f46}
+.b-pend{background:#fef3c7;color:#92400e}
+.b-code{background:#ede9fe;color:#5b21b6}
+.b-chk{background:#dbeafe;color:#1e40af}
+.b-ckd{background:#d1fae5;color:#065f46}
+.b-upd{background:#ccfbf1;color:#0f766e}
+.b-new{background:#e0f2fe;color:#0369a1}
+.b-gray{background:#f3f4f6;color:#6b7280}
+.b-urg{background:#fee2e2;color:#991b1b}
+.b-high{background:#ffedd5;color:#c2410c}
+.b-nor{background:#fef9c3;color:#a16207}
+.b-low{background:#f3f4f6;color:#6b7280}
+.b-req{background:#fef3c7;color:#d97706}
+.b-crash{background:#fee2e2;color:#b91c1c}
+
+.tag2{display:inline-block;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:600}
+.tag2-ad{background:#ede9fe;color:#6d28d9}
+.tag2-nm{background:#fff7ed;color:#c2410c}
+.tag2-fr{background:#f3f4f6;color:#d1d5db}
+
+/* ── History table ────────────────────────────────────────────── */
+.htbl{width:100%;border-collapse:collapse}
+.htbl thead tr{background:#fafafa;border-bottom:1.5px solid var(--border)}
+.htbl thead th{padding:10px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-4);text-align:left;white-space:nowrap}
+.htbl thead th:first-child{padding-left:20px}
+.htbl tbody tr{border-bottom:1px solid var(--border-lt);border-left:3px solid transparent;transition:background .1s}
+.htbl tbody tr.acc{border-left-color:var(--teal)}
+.htbl tbody tr.dim{border-left-color:#e5e7eb;background:#fafafa}
+.htbl tbody tr:hover{background:#fafbff!important}
+.htbl td{padding:11px 16px;vertical-align:top}
+.htbl td:first-child{padding-left:20px}
+.rnote{font-size:12px;color:var(--text-2);line-height:1.4}
+.rdate{font-size:10px;color:var(--text-5);font-family:'SF Mono','Fira Code',monospace;margin-top:3px}
+
+/* ── Modal ────────────────────────────────────────────────────── */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+.ov.open{opacity:1;pointer-events:all}
+.mbox{background:#fff;border-radius:20px;width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-lg);transform:scale(.97) translateY(8px);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+.ov.open .mbox{transform:scale(1) translateY(0)}
+
+/* Modal header gradient band */
+.mhdr{position:relative;padding:22px 24px 0;flex-shrink:0;overflow:hidden}
+.mhdr::before{content:'';position:absolute;inset:0;height:90px;background:linear-gradient(135deg,rgba(13,148,136,.06),rgba(8,145,178,.04));pointer-events:none}
+.mhero{display:flex;align-items:flex-start;gap:18px;position:relative}
+.mic-wrap{position:relative;flex-shrink:0}
+.mic{width:58px;height:58px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.mic-dot{position:absolute;bottom:-3px;right:-3px;width:18px;height:18px;border-radius:50%;border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.minfo{flex:1;min-width:0}
+.mname{font-size:20px;font-weight:800;color:var(--text-1);letter-spacing:-.4px}
+.mbadges{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.mmeta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.mmeta span{font-size:11px;color:var(--text-4)}
+.mmeta .dot{color:#e5e7eb}
+.mmeta a{font-size:11px;color:var(--teal);cursor:pointer;text-decoration:none;font-weight:500}
+.mmeta a:hover{text-decoration:underline}
+.mflags{display:flex;gap:5px;margin-top:8px}
+.mact{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+
+.mstats{display:grid;grid-template-columns:repeat(4,1fr);margin-top:18px;border-top:1.5px solid var(--border-lt);position:relative}
+.mstat{padding:13px 0;text-align:center;border-right:1px solid var(--border-lt)}
+.mstat:last-child{border-right:none}
+.mstat .v{font-size:18px;font-weight:800;color:var(--text-1);letter-spacing:-.3px}
+.mstat .l{font-size:10px;color:var(--text-4);margin-top:2px;font-weight:500}
+
+/* Modal tabs */
+.mtabs{display:flex;padding:0 24px;border-bottom:1.5px solid var(--border);flex-shrink:0;gap:2px;background:#fff}
+.mtab{padding:12px 18px;font-size:12.5px;font-weight:500;cursor:pointer;border:none;background:none;border-bottom:2.5px solid transparent;color:var(--text-4);transition:all .15s;margin-bottom:-1.5px}
+.mtab:hover{color:var(--text-2);background:#fafafa;border-radius:8px 8px 0 0}
+.mtab.on{color:var(--teal);border-bottom-color:var(--teal);font-weight:600}
+
+/* Modal body */
+.mbody{flex:1;overflow:hidden;display:flex;min-height:0}
+.mleft{width:205px;flex-shrink:0;border-right:1.5px solid var(--border-lt);padding:18px 16px;overflow-y:auto;background:#fafafa}
+.mright{flex:1;overflow-y:auto;background:#fff}
+
+/* Timeline */
+.tl-hd{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-4);margin-bottom:14px}
+.tli{display:flex;gap:10px;padding-bottom:16px;position:relative}
+.tli:last-child{padding-bottom:0}
+.tli::before{content:'';position:absolute;left:7px;top:17px;bottom:0;width:1px;background:var(--border)}
+.tli:last-child::before{display:none}
+.tl-dot{width:15px;height:15px;border-radius:50%;border:2px solid var(--border);background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:7px;margin-top:1px;transition:all .2s}
+.tl-dot.ok{color:#fff}
+.tli p{font-size:11px;font-weight:600;color:var(--text-1);line-height:1.3}
+.tli small{font-size:10px;font-family:'SF Mono','Fira Code',monospace;display:block;margin-top:2px}
+
+/* Activities */
+.acards{padding:16px;display:flex;flex-direction:column;gap:12px}
+.acard{border-radius:12px;border:1.5px solid var(--border);overflow:hidden;box-shadow:var(--shadow-sm)}
+.acard-hd{padding:8px 16px;background:#fafafa;border-bottom:1px solid var(--border-lt);display:flex;align-items:center;justify-content:space-between}
+.acard-hd p{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-4)}
+.arow{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border-lt)}
+.arow:last-child{border-bottom:none}
+.arow .lbl{font-size:12.5px;font-weight:500;color:var(--text-2)}
+.arow .sub{font-size:10px;color:var(--text-4);margin-top:2px}
+
+/* Toggle */
+.tog{width:40px;height:23px;border-radius:12px;background:#e5e7eb;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;border:none;outline:none}
+.tog.red{background:#ef4444}
+.tog.teal{background:var(--teal)}
+.tog::after{content:'';position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:transform .2s cubic-bezier(.4,0,.2,1)}
+.tog.red::after,.tog.teal::after{transform:translateX(17px)}
+
+/* Yes/No pill */
+.yn-yes{font-size:11px;padding:3px 13px;border-radius:20px;background:#d1fae5;color:#065f46;font-weight:600}
+.yn-no{font-size:11px;padding:3px 13px;border-radius:20px;background:#fee2e2;color:#dc2626;font-weight:500}
+.yn-dim{font-size:11px;padding:3px 13px;border-radius:20px;background:#f3f4f6;color:#d1d5db;font-weight:400}
+
+/* Releases list */
+.rlist{padding:16px;display:flex;flex-direction:column;gap:10px}
+.ritem{border:1.5px solid var(--border);border-radius:11px;padding:12px 16px;transition:box-shadow .15s}
+.ritem:hover{box-shadow:var(--shadow)}
+.ritem-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ritem .n{font-size:11.5px;color:var(--text-2);margin-top:5px;line-height:1.4}
+.ritem .rn{font-size:10px;color:var(--text-4);font-style:italic;margin-top:2px}
+.ritem .rd{font-size:9.5px;color:var(--text-5);font-family:'SF Mono','Fira Code',monospace;margin-top:2px}
+
+/* Rollout badge */
+.rob{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.rob-ok{background:#d1fae5;color:#065f46}
+.rob-mid{background:#fef3c7;color:#92400e}
+.rob-lo{background:#fee2e2;color:#991b1b}
+.rob-em{background:#f3f4f6;color:#9ca3af}
+
+/* ── Dashboard table ──────────────────────────────────────────── */
+.dtbl{width:100%;border-collapse:collapse}
+.dtbl thead tr{background:#fafafa;border-bottom:1.5px solid var(--border)}
+.dtbl thead th{padding:10px 16px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-4);text-align:left;white-space:nowrap}
+.dtbl thead th:first-child{padding-left:20px}
+.dtbl tbody tr{border-bottom:1px solid var(--border-lt);border-left:3px solid transparent;cursor:pointer;transition:background .1s}
+.dtbl tbody tr:hover{background:#fafbff}
+.dtbl tbody tr.r{border-left-color:#22c55e}
+.dtbl tbody tr.p{border-left-color:#f59e0b}
+.dtbl tbody tr.e{border-left-color:#e5e7eb}
+.dtbl td{padding:11px 16px;vertical-align:middle}
+.dtbl td:first-child{padding-left:20px}
+
+/* ── Monet placeholder ────────────────────────────────────────── */
+.mo-grid{display:grid;grid-template-columns:220px 1fr;height:calc(100vh - 60px)}
+.mo-left{border-right:1.5px solid var(--border);overflow-y:auto;background:#fff}
+.mo-right{overflow-y:auto;padding:24px 28px}
+
+/* ── Empty state ──────────────────────────────────────────────── */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:64px 24px;gap:12px;color:var(--text-4)}
+.empty-ico{width:56px;height:56px;border-radius:16px;background:var(--border-lt);display:flex;align-items:center;justify-content:center;font-size:24px}
+.empty p{font-size:13px;font-weight:500}
+.empty small{font-size:11px;text-align:center}
+
+/* ── Divider ──────────────────────────────────────────────────── */
+.divider{height:1px;background:var(--border-lt);margin:0 28px}
+
+/* ── Animations ───────────────────────────────────────────────── */
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fi{animation:fi .22s ease}
+
+/* ── Demo banner ──────────────────────────────────────────────── */
+.demo-banner{background:linear-gradient(135deg,#0d9488,#0891b2);color:#fff;text-align:center;padding:7px;font-size:11px;font-weight:600;letter-spacing:.02em;flex-shrink:0}
+.demo-banner span{opacity:.7;margin:0 6px}
+
+/* ── Mono font util ───────────────────────────────────────────── */
+.mono{font-family:'SF Mono','Fira Code',monospace}
+</style>
+</head>
+<body>
+<div style="display:flex;flex-direction:column;height:100vh;overflow:hidden;">
+  <div class="demo-banner">🎨 UI Demo — Release Manager <span>·</span> Trang tĩnh, không kết nối Lark/Supabase</div>
+  <div id="app">
+  <!-- ─── Sidebar ─── -->
+  <aside id="sb">
+    <div class="sb-head">
+      <div class="sb-brand">
+        <div class="sb-logo">R</div>
+        <div class="sb-title">
+          <p>Release</p>
+          <small>Manager · Alphalogy</small>
+        </div>
+      </div>
+      <button class="sb-tog" onclick="togSB()" title="Thu gọn">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
+
+    <nav class="sb-nav">
+      <div class="sb-sec">Chính</div>
+      <button class="ni" data-p="dashboard" onclick="go('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span class="lbl">Dashboard</span>
+      </button>
+      <button class="ni on" data-p="apps" onclick="go('apps')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span class="lbl">Apps</span>
+        <span class="ni-cnt">8</span>
+      </button>
+      <button class="ni" data-p="history" onclick="go('history')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+        <span class="lbl">Releases</span>
+        <span class="ni-cnt">32</span>
+      </button>
+      <button class="ni" data-p="watchlist" onclick="go('watchlist')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>
+        <span class="lbl">Watchlist</span>
+        <span class="ni-cnt">3</span>
+      </button>
+
+      <div class="sb-sec">Phân tích</div>
+      <button class="ni" data-p="stats" onclick="go('stats')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span class="lbl">Thống kê</span>
+      </button>
+      <button class="ni" data-p="monet" onclick="go('monet')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span class="lbl">Monet</span>
+      </button>
+    </nav>
+
+    <div class="sb-foot">
+      <button class="ni" style="width:100%;margin-bottom:2px;" onclick="">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 3"/><path d="M21 3v5h-5"/></svg>
+        <span class="lbl">Làm mới dữ liệu</span>
+      </button>
+      <button class="ni" style="width:100%;margin-bottom:8px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span class="lbl">Xuất CSV</span>
+      </button>
+      <div class="sb-user">
+        <div class="sb-av">H</div>
+        <div class="sb-uinfo">
+          <p>Hoang NT</p>
+          <small>hoangnt@alphalogy.net</small>
+        </div>
+      </div>
+      <button class="ni" style="width:100%;" onmouseenter="this.style.color='#f87171'" onmouseleave="this.style.color=''">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span class="lbl">Đăng xuất</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ─── Main ─── -->
+  <main id="main">
+
+    <!-- DASHBOARD -->
+    <div id="pg-dashboard" class="fi" style="display:none;padding-bottom:32px;">
+      <div class="pg-head">
+        <div><div class="pg-title">Dashboard</div><div class="pg-sub">Bản phát hành gần đây</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-g" onclick="">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Import Excel
+          </button>
+          <button class="btn btn-p" onclick="">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Thêm release
+          </button>
+        </div>
+      </div>
+      <div class="stat-strip">
+        <div class="stat-c">
+          <div class="stat-ic" style="background:#f0fdf4;"><svg viewBox="0 0 24 24" fill="none" stroke="#22c55e"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+          <div><div class="stat-v">42</div><div class="stat-l">Tổng apps</div><span class="stat-d d-up">↑ +3 tháng này</span></div>
+        </div>
+        <div class="stat-c">
+          <div class="stat-ic" style="background:#fff7ed;"><svg viewBox="0 0 24 24" fill="none" stroke="#f97316"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          <div><div class="stat-v" style="color:#f97316;">7</div><div class="stat-l">Cần review</div><span class="stat-d d-dn">↓ cần xử lý</span></div>
+        </div>
+        <div class="stat-c">
+          <div class="stat-ic" style="background:#f0f9ff;"><svg viewBox="0 0 24 24" fill="none" stroke="#0ea5e9"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+          <div><div class="stat-v" style="color:#0ea5e9;">12</div><div class="stat-l">Release tháng 6</div><span class="stat-d d-up">↑ +4 tháng trước</span></div>
+        </div>
+        <div class="stat-c">
+          <div class="stat-ic" style="background:#fdf4ff;"><svg viewBox="0 0 24 24" fill="none" stroke="#a855f7"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+          <div><div class="stat-v" style="color:#a855f7;">3</div><div class="stat-l">Request Update</div><span class="stat-d d-dn">⚡ Đang chờ</span></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:20px;">
+        <table class="dtbl"><thead><tr><th>#</th><th>Ngày</th><th>App Name</th><th>Version</th><th>Roll-out</th><th>Mô tả</th><th>Status review</th><th>Review Note</th></tr></thead>
+        <tbody id="dash-tb"></tbody></table>
+      </div>
+    </div>
+
+    <!-- APPS -->
+    <div id="pg-apps" class="fi" style="padding-bottom:32px;">
+      <div class="pg-head">
+        <div><div class="pg-title">Apps</div><div class="pg-sub" id="app-sub">8 apps</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-g" onclick="">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg>
+            Sắp xếp
+          </button>
+          <button class="btn btn-p" onclick="">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13" stroke-width="2.5"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            Import
+          </button>
+        </div>
+      </div>
+
+      <div class="fbar">
+        <div class="fsearch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Tìm nhanh app, HN ID, version, store..." id="app-q" oninput="renderApps()">
+        </div>
+        <div class="chip on" id="cp-run" onclick="togChip('run')">Running <span style="opacity:.6;margin-left:2px;">×</span></div>
+        <div class="chip" id="cp-ios" onclick="togChip('ios')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="5" y="2" width="14" height="20" rx="2"/></svg>
+          iOS
+        </div>
+        <div class="chip" id="cp-android" onclick="togChip('android')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+          Android
+        </div>
+        <div class="chip" id="cp-freeze" onclick="togChip('freeze')">🧊 Frozen</div>
+        <div class="chip" id="cp-req" onclick="togChip('req')">⚡ Req Update</div>
+        <div class="chip" id="cp-crash" onclick="togChip('crash')">🔴 Crash</div>
+        <span id="fcount" class="factive"></span>
+      </div>
+
+      <div class="card">
+        <table class="tbl">
+          <thead><tr>
+            <th style="width:40px;"></th>
+            <th>App Name</th>
+            <th>Platform</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Roll-out</th>
+            <th>Store</th>
+            <th>Flags</th>
+          </tr></thead>
+          <tbody id="app-tb"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="pg-history" class="fi" style="display:none;padding-bottom:32px;">
+      <div class="pg-head">
+        <div><div class="pg-title">Lịch sử phát hành</div><div class="pg-sub">32 bản release</div></div>
+        <button class="btn btn-g">↑ Import Excel</button>
+      </div>
+      <div class="fbar">
+        <div class="fsearch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Tìm app, version, mô tả...">
+        </div>
+        <div class="chip on">Checking <span style="opacity:.6;margin-left:2px;">×</span></div>
+        <div class="chip">Tất cả platform ▾</div>
+        <div class="chip">Roll-out ▾</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <input type="date" style="padding:7px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;color:#374151;background:#fff;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.05);">
+          <span style="font-size:11px;color:#9ca3af;font-weight:500;">→</span>
+          <input type="date" style="padding:7px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;color:#374151;background:#fff;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.05);">
+        </div>
+        <span class="factive">1 filter · <span style="color:#9ca3af;cursor:pointer;font-weight:400;">Xoá</span></span>
+      </div>
+      <div class="card">
+        <table class="htbl">
+          <thead><tr><th>#</th><th>Ngày ↓</th><th>App Name</th><th>HN ID</th><th>Version</th><th>Roll-out</th><th>Mô tả</th><th>Status review</th><th>Review</th><th>Review Note</th></tr></thead>
+          <tbody id="hist-tb"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- OTHER PAGES -->
+    <div id="pg-watchlist" class="fi" style="display:none;">
+      <div class="pg-head"><div class="pg-title">Watchlist</div></div>
+      <div class="empty"><div class="empty-ico">⭐</div><p>Chưa có items được lưu</p><small>Đánh dấu release từ trang Lịch sử phát hành</small></div>
+    </div>
+    <div id="pg-stats" class="fi" style="display:none;">
+      <div class="pg-head"><div class="pg-title">Thống kê</div></div>
+      <div class="empty"><div class="empty-ico">📊</div><p>Charts sẽ hiện ở đây</p><small>Kết nối Lark/Supabase để xem dữ liệu</small></div>
+    </div>
+    <div id="pg-monet" class="fi" style="display:none;">
+      <div class="pg-head"><div class="pg-title">Monet</div></div>
+      <div class="empty"><div class="empty-ico">📈</div><p>Monet detail view</p><small>Chọn app từ danh sách để xem số liệu</small></div>
+    </div>
+  </main>
+</div>
+</div>
+
+<!-- ─── Modal ─── -->
+<div class="ov" id="modal" onclick="closeOv(event)">
+  <div class="mbox">
+    <div class="mhdr">
+      <div class="mhero">
+        <div class="mic-wrap">
+          <div class="mic" id="m-ic"></div>
+          <div class="mic-dot" id="m-dot"></div>
+          <div id="m-fz" style="display:none;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:22px;"></div>
+        </div>
+        <div class="minfo">
+          <div class="mname" id="m-name"></div>
+          <div class="mbadges" id="m-badges"></div>
+          <div class="mmeta" id="m-meta"></div>
+          <div class="mflags" id="m-flags"></div>
+        </div>
+        <div class="mact">
+          <button class="btn btn-p btn-sm">✓ Review</button>
+          <button class="btn btn-g btn-sm">✏️ Edit</button>
+          <button class="btn btn-g btn-sm" onclick="closeMod()" style="color:#9ca3af;">✕ Đóng</button>
+        </div>
+      </div>
+      <div class="mstats">
+        <div class="mstat"><div class="v" id="ms-r">—</div><div class="l">Releases</div></div>
+        <div class="mstat"><div class="v" id="ms-l" style="color:var(--teal);">—</div><div class="l">Latest</div></div>
+        <div class="mstat"><div class="v" id="ms-ro" style="color:#f59e0b;">—</div><div class="l">Roll-out</div></div>
+        <div class="mstat"><div class="v" id="ms-rv" style="color:#22c55e;">—</div><div class="l">Reviewed</div></div>
+      </div>
+    </div>
+    <div class="mtabs">
+      <button class="mtab on" onclick="mTab('activities',this)">Activities</button>
+      <button class="mtab" onclick="mTab('releases',this)" id="mtab-rel">Releases</button>
+      <button class="mtab" onclick="mTab('documents',this)">Documents</button>
+    </div>
+    <div class="mbody">
+      <div class="mleft">
+        <div class="tl-hd">Timeline</div>
+        <div id="m-tl"></div>
+      </div>
+      <div class="mright">
+        <div id="tab-activities" class="acards"></div>
+        <div id="tab-releases"   class="rlist" style="display:none;"></div>
+        <div id="tab-documents"  style="display:none;" class="empty"><div class="empty-ico">📎</div><p>Chưa có tài liệu</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─── Data ─────────────────────────────────────────────────────── */
+const GRAD = [
+  ['#0d9488','#0891b2'],['#6366f1','#8b5cf6'],['#f59e0b','#f97316'],
+  ['#ef4444','#e11d48'],['#22c55e','#10b981'],['#ec4899','#a855f7'],
+  ['#0ea5e9','#6366f1'],['#14b8a6','#0d9488'],
+]
+const gc = s => GRAD[Math.abs([...s].reduce((h,c)=>((h<<5)-h+c.charCodeAt(0))|0,0)) % GRAD.length]
+
+const TL = [
+  {k:'figmaStart', l:'Figma Start',   c:'#a78bfa'},
+  {k:'figmaEnd',   l:'Figma End',     c:'#7c3aed'},
+  {k:'devStart',   l:'Dev Start',     c:'#60a5fa'},
+  {k:'testStart',  l:'Test Start',    c:'#34d399'},
+  {k:'liveFullAds',l:'Live Full Ads', c:'#fb923c'},
+  {k:'liveIap',    l:'Live iAP',      c:'#f43f5e'},
+]
+
+const APPS = [
+  {id:1,name:'A42i Note Taker',hnId:'App564',platform:'iOS',status:'RUNNING',priority:'HIGH',rollout:50,store:'MobDev',ad2:true,noMedia:false,frozen:false,req:true,crash:false,
+   rels:[{v:'1.0.4',d:'2026-06-06',ro:'50%',n:'Update SDK Fan',rn:'Có fresh issue, đủ tốt để roll 99',rd:'2026-06-10',rs:'Checking'},
+         {v:'1.0.3',d:'2026-04-12',ro:'100%',n:'Fix crash login',rn:'Crash-free >99%',rd:'2026-04-15',rs:'Checked'},
+         {v:'1.0.2',d:'2026-02-01',ro:'100%',n:'Update request & iAP',rn:'',rd:'',rs:''},
+         {v:'1.0.1',d:'2025-11-20',ro:'100%',n:'Init release',rn:'',rd:'',rs:''}],
+   tl:{figmaStart:'2025-08-01',figmaEnd:'2025-09-01',devStart:'2025-09-15',testStart:'2025-10-10',liveFullAds:'2025-11-01',liveIap:'2026-04-12'}},
+  {id:2,name:'A36D AI Photo',hnId:'App460D',platform:'Android',status:'RUNNING',priority:'NORMAL',rollout:30,store:'VinaCap',ad2:false,noMedia:true,frozen:false,req:false,crash:true,
+   rels:[{v:'1.0.5',d:'2025-12-30',ro:'30%',n:'Update request',rn:'Nhiều request tới ad id cũ, chưa điều tra được lý do',rd:'2026-01-05',rs:'Checking'},
+         {v:'1.0.4',d:'2025-09-10',ro:'100%',n:'Fix crash & update SDK',rn:'OK',rd:'2025-09-12',rs:'Checked'}],
+   tl:{figmaStart:'2024-12-01',figmaEnd:'2025-01-10',devStart:'2025-02-01',testStart:'2025-03-01',liveFullAds:'2025-04-01',liveIap:''}},
+  {id:3,name:'A36F AI Photo',hnId:'App460F',platform:'Android',status:'RUNNING',priority:'LOW',rollout:99,store:'VinaCap',ad2:false,noMedia:false,frozen:false,req:false,crash:false,
+   rels:[{v:'1.0.2',d:'2025-11-21',ro:'99%',n:'Đổi app icon',rn:'Vẫn đang theo dõi hàng ngày',rd:'2025-11-25',rs:'Checking'},
+         {v:'1.0.1',d:'2025-07-01',ro:'100%',n:'Version ads',rn:'',rd:'',rs:''}],
+   tl:{figmaStart:'2024-11-01',figmaEnd:'2024-12-01',devStart:'2025-01-10',testStart:'2025-02-15',liveFullAds:'2025-03-20',liveIap:''}},
+  {id:4,name:'A36 AI Photo',hnId:'App460',platform:'Android',status:'PENDING',priority:'NORMAL',rollout:30,store:'MobDev',ad2:false,noMedia:false,frozen:false,req:false,crash:false,
+   rels:[{v:'1.1.4',d:'2025-08-19',ro:'30%',n:'Update request',rn:'Vẫn đang theo dõi hàng ngày',rd:'2025-08-22',rs:'Checking'}],
+   tl:{figmaStart:'2024-06-01',figmaEnd:'2024-07-01',devStart:'2024-08-01',testStart:'2024-09-10',liveFullAds:'2024-10-20',liveIap:''}},
+  {id:5,name:'A26B Piano',hnId:'App448B',platform:'Android',status:'RUNNING',priority:'LOW',rollout:50,store:'AlpDev',ad2:true,noMedia:false,frozen:false,req:false,crash:false,
+   rels:[{v:'1.0.3',d:'2025-08-13',ro:'50%',n:'Update fb sdk',rn:'Cần check lại việc show ads',rd:'2025-08-15',rs:'Checking'}],
+   tl:{figmaStart:'2024-08-01',figmaEnd:'2024-09-01',devStart:'2024-10-01',testStart:'2024-11-01',liveFullAds:'2024-12-01',liveIap:''}},
+  {id:6,name:'B12 Piano App',hnId:'App448',platform:'iOS',status:'PENDING',priority:'URGENT',rollout:0,store:'AlpDev',ad2:false,noMedia:false,frozen:true,req:false,crash:false,
+   rels:[{v:'1.0.1',d:'2025-06-01',ro:'--',n:'Init',rn:'',rd:'',rs:''}],
+   tl:{figmaStart:'2024-04-01',figmaEnd:'2024-05-01',devStart:'2024-06-01',testStart:'',liveFullAds:'',liveIap:''}},
+  {id:7,name:'C09 Weather',hnId:'App512',platform:'iOS',status:'RUNNING',priority:'HIGH',rollout:100,store:'MobDev',ad2:true,noMedia:true,frozen:false,req:true,crash:false,
+   rels:[{v:'2.1.0',d:'2026-05-15',ro:'100%',n:'Major redesign',rn:'Approved, no issues',rd:'2026-05-16',rs:'Checked'}],
+   tl:{figmaStart:'2025-11-01',figmaEnd:'2025-12-15',devStart:'2026-01-10',testStart:'2026-03-01',liveFullAds:'2026-04-20',liveIap:'2026-05-01'}},
+  {id:8,name:'D22 Flashcard',hnId:'App601',platform:'Android',status:'CODING',priority:'NORMAL',rollout:0,store:'VinaCap',ad2:false,noMedia:false,frozen:false,req:false,crash:false,
+   rels:[{v:'0.9.0',d:'2026-06-01',ro:'--',n:'Beta internal',rn:'',rd:'',rs:''}],
+   tl:{figmaStart:'2026-03-01',figmaEnd:'2026-04-01',devStart:'2026-04-15',testStart:'',liveFullAds:'',liveIap:''}},
+]
+
+/* ─── State ─────────────────────────────────────────────────────── */
+let sbCol = false
+let chips = new Set(['run'])
+
+/* ─── Sidebar ───────────────────────────────────────────────────── */
+function togSB() {
+  sbCol = !sbCol
+  document.getElementById('sb').classList.toggle('col', sbCol)
+  const s = document.querySelector('.sb-tog svg')
+  s.style.transform = sbCol ? 'rotate(180deg)' : ''
+}
+
+/* ─── Nav ───────────────────────────────────────────────────────── */
+function go(p) {
+  ['dashboard','apps','history','watchlist','stats','monet'].forEach(x => {
+    document.getElementById('pg-'+x).style.display = x===p ? '' : 'none'
+  })
+  document.querySelectorAll('.ni').forEach(el => {
+    el.classList.toggle('on', el.dataset.p === p)
+  })
+  if (p==='apps')      renderApps()
+  if (p==='history')   renderHist()
+  if (p==='dashboard') renderDash()
+}
+
+/* ─── Chips ──────────────────────────────────────────────────────── */
+function togChip(id) {
+  chips.has(id) ? chips.delete(id) : chips.add(id)
+  document.querySelectorAll('.chip').forEach(el => {
+    const cid = el.id?.replace('cp-','')
+    if (cid) el.classList.toggle('on', chips.has(cid))
+  })
+  document.getElementById('fcount').innerHTML = chips.size
+    ? `${chips.size} filter active · <span style="color:#9ca3af;cursor:pointer;font-weight:400;" onclick="clearC()">Xoá tất cả</span>`
+    : ''
+  renderApps()
+}
+function clearC() {
+  chips.clear()
+  document.querySelectorAll('.chip').forEach(el => el.classList.remove('on'))
+  document.getElementById('fcount').innerHTML = ''
+  renderApps()
+}
+
+/* ─── Badge helpers ──────────────────────────────────────────────── */
+const pb = (p) => `<span class="b ${p==='iOS'?'b-ios':'b-and'}">${p}</span>`
+const sb2 = (s) => {
+  const m={RUNNING:'b-run',PENDING:'b-pend',CODING:'b-code',CHECKING:'b-chk',REMOVED:'b-gray'}
+  return `<span class="b ${m[s]||'b-gray'}">${s}</span>`
+}
+const rb = (s) => {
+  if (!s) return `<span class="b b-gray" style="font-size:10px;">—</span>`
+  const m={Checked:'b-ckd',Updated:'b-upd',Checking:'b-chk','Pending Review':'b-pend',New:'b-new'}
+  return `<span class="b ${m[s]||'b-gray'}" style="font-size:10px;">${s}</span>`
+}
+const prib = (p) => {
+  const m={URGENT:'b-urg',HIGH:'b-high',NORMAL:'b-nor',LOW:'b-low'}
+  return `<span class="b ${m[p]||'b-gray'}" style="font-size:10px;">${p}</span>`
+}
+const robadge = (r) => {
+  if (!r||r==='--') return `<span class="rob rob-em">--</span>`
+  const n=parseInt(r)
+  const c = n>=99?'rob-ok':n>=50?'':n>0?'rob-mid':'rob-lo'
+  return `<span class="rob ${c}">${r}</span>`
+}
+
+/* ─── Apps render ────────────────────────────────────────────────── */
+function renderApps() {
+  const q = (document.getElementById('app-q')?.value||'').toLowerCase()
+  const data = APPS.filter(a => {
+    if (q && !`${a.name} ${a.hnId} ${a.store}`.toLowerCase().includes(q)) return false
+    if (chips.has('run')     && a.status!=='RUNNING') return false
+    if (chips.has('ios')     && a.platform!=='iOS')   return false
+    if (chips.has('android') && a.platform!=='Android') return false
+    if (chips.has('freeze')  && !a.frozen)  return false
+    if (chips.has('req')     && !a.req)     return false
+    if (chips.has('crash')   && !a.crash)   return false
+    return true
+  })
+  document.getElementById('app-sub').textContent = `${data.length} apps đang hiển thị`
+
+  const tbody = document.getElementById('app-tb')
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="empty-ico">🔍</div><p>Không tìm thấy app nào</p><small>Thử xoá filter</small></div></td></tr>`
+    return
+  }
+
+  tbody.innerHTML = data.map(a => {
+    const [c1,c2] = gc(a.name)
+    const flags = [
+      a.ad2     ? `<span class="tag2 tag2-ad">Ad 2</span>` : '',
+      a.noMedia ? `<span class="tag2 tag2-nm">No Media</span>` : '',
+      a.frozen  ? `<span class="tag2 tag2-fr">🧊 Frozen</span>` : '',
+      a.req     ? `<span class="b b-req" style="font-size:10px;">⚡ Req</span>` : '',
+      a.crash   ? `<span class="b b-crash" style="font-size:10px;">🔴 Crash</span>` : '',
+    ].filter(Boolean).join('')
+
+    const iconHtml = a.frozen
+      ? `<div class="ai-bg" style="background:linear-gradient(135deg,${c1},${c2});opacity:.35;">${a.name[0]}</div>
+         <div class="ai-fo">🧊</div>`
+      : `<div class="ai-bg" style="background:linear-gradient(135deg,${c1},${c2});">${a.name[0]}</div>`
+
+    const rowCls = a.frozen ? 'dim' : (a.rels[0]?.rn ? 'acc' : '')
+    const ro = a.rollout
+
+    return `<tr class="${rowCls}" onclick="openMod(${a.id})">
+      <td><div class="ai">${iconHtml}</div></td>
+      <td><div class="aname-row">
+        <div class="aname-info">
+          <div class="n">${a.name}</div>
+          <div class="m">${a.hnId}</div>
+        </div>
+      </div></td>
+      <td>${pb(a.platform)}</td>
+      <td>${sb2(a.status)}</td>
+      <td>${prib(a.priority)}</td>
+      <td class="ro-wrap">
+        ${ro > 0
+          ? `<div class="ro-num">${ro}%</div><div class="ro-bar"><div class="ro-fill" style="width:${ro}%;"></div></div>`
+          : `<span style="color:#d1d5db;font-size:11px;font-weight:500;">—</span>`}
+      </td>
+      <td><span style="font-size:12px;color:#6b7280;font-weight:500;">${a.store}</span></td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap;">${flags||'<span style="color:#e5e7eb;font-size:11px;">—</span>'}</div></td>
+    </tr>`
+  }).join('')
+}
+
+/* ─── History render ─────────────────────────────────────────────── */
+function renderHist() {
+  const rows = APPS.flatMap(a => a.rels.map(r => ({...r,a}))).sort((x,y) => y.d.localeCompare(x.d))
+  document.getElementById('hist-tb').innerHTML = rows.map((r,i) => `
+    <tr class="${r.rn?'acc':'dim'}">
+      <td class="mono" style="color:#9ca3af;font-size:11px;">${i+1}</td>
+      <td class="mono" style="font-size:11px;color:#6b7280;white-space:nowrap;">${r.d}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          ${pb(r.a.platform)}
+          <span style="font-size:12.5px;font-weight:700;color:#111827;cursor:pointer;" onclick="openMod(${r.a.id})">${r.a.name}</span>
+          ${r.a.req?`<span class="b b-req" style="font-size:10px;">⚡</span>`:''}
+        </div>
+      </td>
+      <td class="mono" style="font-size:11px;color:#6b7280;">${r.a.hnId}</td>
+      <td><span class="mono" style="font-size:11px;background:#f3f4f6;padding:2px 8px;border-radius:6px;font-weight:600;">${r.v}</span></td>
+      <td>${robadge(r.ro)}</td>
+      <td style="max-width:150px;"><span style="font-size:11.5px;color:#6b7280;">${r.n||'—'}</span></td>
+      <td>${rb(r.rs)}</td>
+      <td><button class="btn btn-p btn-sm" style="font-size:10px;padding:4px 10px;">✓ Review</button></td>
+      <td style="max-width:200px;">
+        ${r.rn?`<div class="rnote">${r.rn.length>55?r.rn.slice(0,55)+'…':r.rn}</div>`:`<span style="color:#e5e7eb;font-size:11px;">—</span>`}
+        ${r.rd?`<div class="rdate">${r.rd}</div>`:''}
+      </td>
+    </tr>`).join('')
+}
+
+/* ─── Dashboard render ───────────────────────────────────────────── */
+function renderDash() {
+  const rows = APPS.flatMap(a => a.rels.map(r => ({...r,a}))).sort((x,y) => y.d.localeCompare(x.d)).slice(0,10)
+  document.getElementById('dash-tb').innerHTML = rows.map((r,i) => {
+    const cls = r.rs==='Checked'||r.rs==='Updated' ? 'r' : r.rs ? 'p' : 'e'
+    return `<tr class="${cls}" onclick="openMod(${r.a.id})">
+      <td class="mono" style="color:#9ca3af;font-size:11px;">${i+1}</td>
+      <td class="mono" style="font-size:11px;color:#6b7280;white-space:nowrap;">${r.d}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">${pb(r.a.platform)}
+          <span style="font-size:12.5px;font-weight:700;color:#111827;">${r.a.name}</span>
+          ${r.a.req?`<span class="b b-req" style="font-size:10px;">⚡</span>`:''}
+        </div>
+        <div class="mono" style="font-size:10px;color:#9ca3af;margin-top:2px;">${r.a.hnId}</div>
+      </td>
+      <td><span class="mono" style="font-size:11px;background:#f3f4f6;padding:2px 8px;border-radius:6px;font-weight:600;">${r.v}</span></td>
+      <td>${robadge(r.ro)}</td>
+      <td style="max-width:150px;font-size:12px;color:#6b7280;">${r.n||'—'}</td>
+      <td>${rb(r.rs)}</td>
+      <td style="max-width:190px;">
+        ${r.rn?`<div class="rnote" style="font-size:12px;">${r.rn.length>45?r.rn.slice(0,45)+'…':r.rn}</div>`:`<span style="color:#e5e7eb;font-size:11px;">—</span>`}
+        ${r.rd?`<div class="rdate">${r.rd}</div>`:''}
+      </td>
+    </tr>`
+  }).join('')
+}
+
+/* ─── Modal ──────────────────────────────────────────────────────── */
+function openMod(id) {
+  const a = APPS.find(x => x.id===id)
+  if (!a) return
+  const [c1,c2] = gc(a.name)
+
+  // Icon
+  const icEl = document.getElementById('m-ic')
+  icEl.style.background = `linear-gradient(135deg,${c1},${c2})`
+  icEl.style.opacity = a.frozen ? '.35' : '1'
+  icEl.textContent = a.name[0]
+
+  // Freeze overlay
+  const fz = document.getElementById('m-fz')
+  if (a.frozen) { fz.style.display='flex'; fz.textContent='🧊' }
+  else fz.style.display='none'
+
+  // Status dot
+  const dot = document.getElementById('m-dot')
+  dot.style.background = a.status==='RUNNING'?'#22c55e':a.status==='PENDING'?'#f59e0b':'#9ca3af'
+  dot.textContent = a.status==='RUNNING'?'✓':a.status==='PENDING'?'⏸':'·'
+  dot.style.color = '#fff'
+
+  document.getElementById('m-name').textContent = a.name
+  document.getElementById('m-badges').innerHTML = [
+    pb(a.platform), sb2(a.status), prib(a.priority),
+    a.req   ? `<span class="b b-req">⚡ Request Update</span>` : '',
+    a.crash ? `<span class="b b-crash">🔴 Fix Crash</span>` : '',
+    a.frozen? `<span class="b b-gray">🧊 Freezed</span>` : '',
+  ].filter(Boolean).join('')
+
+  document.getElementById('m-meta').innerHTML = `
+    <span class="mono" style="font-size:11px;">${a.hnId}</span>
+    <span class="dot">·</span><span>${a.store}</span>
+    <span class="dot">·</span><a href="#">Store ↗</a>`
+
+  document.getElementById('m-flags').innerHTML = [
+    a.ad2     ? `<span class="tag2 tag2-ad">Ad 2</span>` : '',
+    a.noMedia ? `<span class="tag2 tag2-nm">Native no media</span>` : '',
+  ].filter(Boolean).join('')
+
+  const latest = a.rels[0]
+  document.getElementById('ms-r').textContent  = a.rels.length
+  document.getElementById('ms-l').textContent  = latest?.v || '—'
+  document.getElementById('ms-ro').textContent = latest?.ro || '—'
+  document.getElementById('ms-rv').textContent = a.rels.filter(r=>r.rs==='Checked'||r.rs==='Updated').length
+
+  // Timeline
+  document.getElementById('m-tl').innerHTML = TL.map(s => {
+    const d = a.tl[s.k], ok = !!d
+    return `<div class="tli">
+      <div class="tl-dot ${ok?'ok':''}" style="${ok?`background:${s.c};border-color:${s.c};`:''}">
+        ${ok?'✓':''}
+      </div>
+      <div>
+        <p>${s.l}</p>
+        <small style="color:${ok?s.c:'#d1d5db'};">${d||'—'}</small>
+      </div>
+    </div>`
+  }).join('')
+
+  // Activities
+  document.getElementById('tab-activities').innerHTML = `
+    <div class="acard">
+      <div class="acard-hd"><p>Config</p></div>
+      <div class="arow"><span class="lbl">Show Intro</span><span class="b b-gray" style="font-size:10px;">—</span></div>
+      <div class="arow"><span class="lbl">Config Intro</span><span class="b b-gray" style="font-size:10px;">—</span></div>
+      <div class="arow"><span class="lbl">Local Noti</span><span class="b b-gray" style="font-size:10px;">—</span></div>
+      <div class="arow"><span class="lbl">iAP</span>
+        ${a.tl.liveIap
+          ? `<span class="b b-ckd" style="font-size:10px;">Live</span>`
+          : a.platform==='iOS'
+            ? `<span class="b b-urg" style="font-size:10px;">No</span>`
+            : `<span class="b b-gray" style="font-size:10px;">No</span>`}
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="acard-hd"><p>Flags</p></div>
+      ${[
+        {l:'Ad 2',v:a.ad2,subtle:false},
+        {l:'Native no media',v:a.noMedia,subtle:false},
+        {l:'Freezed',v:a.frozen,subtle:true},
+      ].map(f=>`<div class="arow"><span class="lbl">${f.l}</span>
+        ${f.v ? `<span class="yn-yes">Yes</span>`
+              : f.subtle ? `<span class="yn-dim">No</span>`
+              : `<span class="yn-no">No</span>`}
+      </div>`).join('')}
+    </div>
+
+    <div class="acard">
+      <div class="acard-hd"><p>Status</p></div>
+      <div class="arow">
+        <div>
+          <div class="lbl">Fix Crashes</div>
+          ${a.crash?`<div class="sub" style="color:#ef4444;">🔴 Đang có crash cần fix</div>`:''}
+        </div>
+        <button class="tog ${a.crash?'red':''}" onclick="this.classList.toggle('red')"></button>
+      </div>
+      <div class="arow">
+        <div>
+          <div class="lbl">Request Update</div>
+          ${a.req?`<div class="sub" style="color:#f59e0b;">⚡ Đang có request</div>`:''}
+        </div>
+        <button class="tog ${a.req?'teal':''}" onclick="this.classList.toggle('teal')"></button>
+      </div>
+    </div>
+
+    <div class="acard">
+      <div class="acard-hd" style="display:flex;align-items:center;justify-content:space-between;">
+        <p>Request Update</p>
+        <button style="width:22px;height:22px;border-radius:50%;background:#f0fdf4;color:var(--teal);border:none;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>
+      </div>
+      <div style="padding:14px 16px;">
+        <span style="font-size:12px;color:#d1d5db;">Chưa có nội dung — nhấn + để thêm link</span>
+      </div>
+    </div>`
+
+  // Releases
+  document.getElementById('mtab-rel').textContent = `Releases (${a.rels.length})`
+  document.getElementById('tab-releases').innerHTML = a.rels.map(r=>`
+    <div class="ritem">
+      <div class="ritem-top">
+        <span class="mono" style="font-size:11.5px;background:#f3f4f6;padding:2px 9px;border-radius:6px;font-weight:700;">${r.v}</span>
+        ${robadge(r.ro)} ${rb(r.rs)}
+        <span class="mono" style="font-size:10px;color:#9ca3af;">${r.d}</span>
+      </div>
+      ${r.n?`<div class="n">${r.n}</div>`:''}
+      ${r.rn?`<div class="rn">Review: ${r.rn}</div>`:''}
+      ${r.rd?`<div class="rd">${r.rd}</div>`:''}
+    </div>`).join('')
+
+  mTab('activities', document.querySelector('.mtab'))
+  document.getElementById('modal').classList.add('open')
+}
+
+function closeOv(e) { if(e.target===document.getElementById('modal')) closeMod() }
+function closeMod()  { document.getElementById('modal').classList.remove('open') }
+
+function mTab(t, btn) {
+  ['activities','releases','documents'].forEach(x => {
+    document.getElementById('tab-'+x).style.display = x===t ? '' : 'none'
+  })
+  document.querySelectorAll('.mtab').forEach(el => el.classList.remove('on'))
+  if (btn) btn.classList.add('on')
+}
+
+/* ─── Init ───────────────────────────────────────────────────────── */
+window.onload = () => {
+  go('apps')
+  document.getElementById('fcount').innerHTML =
+    `1 filter active · <span style="color:#9ca3af;cursor:pointer;font-weight:400;" onclick="clearC()">Xoá tất cả</span>`
+}
+</script>
+</body>
+</html>
