@@ -39,8 +39,9 @@ export default function Dashboard() {
   const [reviewSaving, setReviewSaving] = useState(false)
   const [detailApp, setDetailApp]       = useState(null)
 
-  // Quick filter
-  const [activeFilter, setActiveFilter] = useState('all')
+  // Quick filter — persist last used tab
+  const [activeFilter, setActiveFilter] = useState(() => localStorage.getItem('dashboardFilter') || 'all')
+  const setFilter = (key) => { setActiveFilter(key); localStorage.setItem('dashboardFilter', key) }
 
   // Inline note editing
   const [editingNote, setEditingNote] = useState(null)
@@ -213,7 +214,7 @@ export default function Dashboard() {
               { key: 'checked', label: 'Đã checked',   count: counts.checked, color: '#0d9488' },
               { key: 'week',    label: 'Tuần này',     count: counts.thisWeek, color: '#2563eb' },
             ].map((f, i) => (
-              <button key={f.key} onClick={() => setActiveFilter(f.key)}
+              <button key={f.key} onClick={() => setFilter(f.key)}
                 style={{ padding: '6px 12px', fontSize: 12, fontWeight: activeFilter === f.key ? 700 : 500, border: 'none', borderLeft: i > 0 ? '1px solid #e2e8f0' : 'none', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.12s',
                   background: activeFilter === f.key ? '#0f172a' : '#fff',
                   color: activeFilter === f.key ? '#fff' : (f.color || '#64748b') }}>

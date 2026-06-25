@@ -136,10 +136,19 @@ export default function Layout({ children }) {
           {NAV.filter(n => n.group === 'main').map(({ to, label, Icon, countKey, defaultStatus }) => {
             const isAppsItem = to === '/apps'
             const active = location.pathname === to
+            // For Apps item: restore last used tab from localStorage
+            const appsNavTarget = (() => {
+              if (!isAppsItem) return defaultStatus ? `${to}?status=${defaultStatus}` : to
+              const last = localStorage.getItem('appsLastTab')
+              if (!last) return to
+              if (last === '__goals__') return '/apps?view=goals'
+              if (last) return `/apps?status=${last}`
+              return to
+            })()
             return (
               <React.Fragment key={to}>
                 <NavLink
-                  to={defaultStatus ? `${to}?status=${defaultStatus}` : to}
+                  to={appsNavTarget}
                   className={() => clsx('relative flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-sm transition-all duration-150 mb-0.5', active && 'font-medium')}
                   style={() => active
                     ? { background: 'rgba(13,148,136,0.18)', color: '#2dd4bf' }
@@ -173,14 +182,25 @@ export default function Layout({ children }) {
                       const isActive = isGoals
                         ? urlView === 'goals'
                         : !urlView && currentStatus === s.value
+                      const handleClick = () => {
+                        if (isGoals) {
+                          localStorage.setItem('appsLastTab', '__goals__')
+                          navigate('/apps?view=goals')
+                        } else {
+                          localStorage.setItem('appsLastTab', s.value)
+                          navigate(s.value ? `/apps?status=${s.value}` : '/apps')
+                        }
+                      }
                       return (
                         <button
                           key={s.value}
-                          onClick={() => isGoals ? navigate('/apps?view=goals') : navigate(s.value ? `/apps?status=${s.value}` : '/apps?status=')}
+                          onClick={handleClick}
                           className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors"
                           style={isActive
                             ? { background: 'rgba(13,148,136,0.15)', color: '#2dd4bf' }
                             : { color: 'rgba(255,255,255,0.4)' }}
+                          onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.7)' }}
+                          onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'rgba(255,255,255,0.4)' }}
                         >
                           {isGoals
                             ? <span style={{ fontSize: 10 }}>🎯</span>

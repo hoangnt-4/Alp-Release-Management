@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { useReleasesStore } from '../hooks/useReleasesStore'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import AppDetailModal from '../components/AppDetailModal'
 import StoreAccountSidebar from '../components/StoreAccountSidebar'
 import { FEATURES } from '../lib/features'
@@ -196,9 +196,20 @@ const GOAL_STATUSES = [
 export default function Apps() {
   const { apps, timelines, activities, monet, loading } = useReleasesStore()
   const location = useLocation()
+  const navigate = useNavigate()
   const urlStatus = new URLSearchParams(location.search).get('status') || ''
   const urlView   = new URLSearchParams(location.search).get('view')   || ''
   const isGoalsView = urlView === 'goals'
+
+  // Restore last used sub-tab on fresh load (no params in URL)
+  useEffect(() => {
+    if (urlStatus || urlView) return  // already has params, don't override
+    const last = localStorage.getItem('appsLastTab')
+    if (!last) return
+    if (last === '__goals__') { navigate('/apps?view=goals', { replace: true }); return }
+    navigate(`/apps?status=${last}`, { replace: true })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [search, setSearch]                 = useState('')
   const [filterPlatform, setFilterPlatform] = useState('')
