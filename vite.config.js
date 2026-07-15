@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'http://localhost:9999'
+      '/api': 'http://localhost:9999',
+      '/.netlify/functions': 'http://localhost:9999'
     }
   }
 })

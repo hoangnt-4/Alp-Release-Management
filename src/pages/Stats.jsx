@@ -886,6 +886,192 @@ function ReleaseCalendarView({ releases, apps, timelines }) {
   )
 }
 
+// Module-level cache — tồn tại đến khi refresh trang, reset khi navigate lại
+const _installsCache = { android: null, ios: null }
+
+function useInstallsData() {
+  const [androidApps,     setAndroidApps]     = useState(_installsCache.android || [])
+  const [iosApps,         setIosApps]         = useState(_installsCache.ios || [])
+  const [installsLoading, setInstallsLoading] = useState(!_installsCache.android)
+
+  useEffect(() => {
+    if (_installsCache.android !== null && _installsCache.ios !== null) return // hit cache
+    Promise.all([
+      fetch('/.netlify/functions/installs-list?platform=android').then(r => r.json()),
+      fetch('/.netlify/functions/installs-list?platform=ios').then(r => r.json()),
+    ])
+      .then(([a, i]) => {
+        _installsCache.android = a.apps || []
+        _installsCache.ios     = i.apps || []
+        setAndroidApps(_installsCache.android)
+        setIosApps(_installsCache.ios)
+      })
+      .catch(() => {})
+      .finally(() => setInstallsLoading(false))
+  }, [])
+
+  return { androidApps, iosApps, installsLoading }
+}
+
+function computeStats(apps) {
+  const withInstalls = apps.filter(a => a.installs > 0)
+  const total  = withInstalls.reduce((s, a) => s + (a.installs || 0), 0)
+  const top    = [...withInstalls].sort((a, b) => b.installs - a.installs).slice(0, 10)
+  const avg    = withInstalls.length ? Math.round(total / withInstalls.length) : 0
+  const lastTs = withInstalls.reduce((max, a) => Math.max(max, a.lastUpdated || 0), 0)
+  return { total, top, synced: withInstalls.length, count: apps.length, avg, lastTs }
+}
+
+// Compact top-list used inside each platform column
+function PlatformTopList({ apps, color, emptyMsg }) {
+  const fmt = n => Number(n).toLocaleString('en-US')
+  if (!apps.length) return (
+    <p style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '20px 0', margin: 0 }}>{emptyMsg}</p>
+  )
+  const max = apps[0]?.installs || 1
+  return (
+    <div>
+      {apps.map((app, i) => {
+        const pct = Math.round((app.installs / max) * 100)
+        const opacity = i < 3 ? 1 : 0.55 + i * 0.03
+        return (
+          <div key={app.recordId}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px',
+              borderBottom: i < apps.length - 1 ? '1px solid #f8fafc' : 'none', transition: 'background 0.1s' }}
+            onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+            onMouseLeave={e => e.currentTarget.style.background = ''}
+          >
+            <span style={{ width: 16, fontSize: 11, fontWeight: 800, textAlign: 'center', flexShrink: 0,
+              color: i < 3 ? color : '#cbd5e1' }}>{i + 1}</span>
+            <div style={{ width: 80, flexShrink: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {app.alpId || '—'}
+              </div>
+              {app.hnId && <div style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>{app.hnId}</div>}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 3 }}>
+                {app.appName || '—'}
+              </div>
+              <div style={{ height: 4, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: color, opacity,
+                  borderRadius: 99, transition: 'width 0.6s ease' }} />
+              </div>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, color, fontFamily: 'monospace', flexShrink: 0, minWidth: 72, textAlign: 'right' }}>
+              {fmt(app.installs)}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function InstallsOverview() {
+  const { androidApps, iosApps, installsLoading } = useInstallsData()
+
+  const android = useMemo(() => computeStats(androidApps), [androidApps])
+  const ios     = useMemo(() => computeStats(iosApps),     [iosApps])
+
+  const fmt = n => Number(n).toLocaleString('en-US')
+
+  if (installsLoading) return (
+    <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: '#94a3b8' }}>Đang tải installs…</div>
+  )
+
+  const grandTotal    = android.total + ios.total
+  const androidPct    = grandTotal ? Math.round(android.total / grandTotal * 100) : 0
+  const iosPct        = 100 - androidPct
+  const ANDROID_COLOR = '#0d9488'
+  const IOS_COLOR     = '#0071e3'
+
+  return (
+    <div style={{ marginTop: 16 }}>
+
+      {/* ── Grand Total ───────────────────────────────────────────────────── */}
+      <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', borderRadius: 14, padding: '18px 22px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>
+        {/* Big number */}
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Tổng cộng</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: '#fff', fontFamily: 'monospace', letterSpacing: '-0.02em' }}>{fmt(grandTotal)}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>Android + iOS</div>
+        </div>
+
+        {/* Split bar */}
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: ANDROID_COLOR }}>Android {androidPct}%</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: IOS_COLOR }}>iOS {iosPct}%</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 99, overflow: 'hidden', background: 'rgba(255,255,255,0.08)', display: 'flex' }}>
+            <div style={{ width: `${androidPct}%`, background: ANDROID_COLOR, transition: 'width 0.7s ease' }} />
+            <div style={{ flex: 1, background: IOS_COLOR, opacity: 0.85 }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace' }}>{fmt(android.total)}</span>
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'monospace' }}>{fmt(ios.total)}</span>
+          </div>
+        </div>
+
+        {/* App counts */}
+        <div style={{ display: 'flex', gap: 20 }}>
+          {[
+            { label: 'Android apps', value: `${android.synced}/${android.count}`, color: ANDROID_COLOR },
+            { label: 'iOS apps',     value: `${ios.synced}/${ios.count}`,         color: IOS_COLOR     },
+          ].map(s => (
+            <div key={s.label}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 3 }}>{s.label}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: s.color, fontFamily: 'monospace' }}>{s.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Two columns: Android | iOS ────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {[
+          { label: 'Android', stats: android, color: ANDROID_COLOR, emptyMsg: 'Chưa có data — chạy Sync All' },
+          { label: 'iOS',     stats: ios,     color: IOS_COLOR,     emptyMsg: 'Chưa có iOS installs' },
+        ].map(({ label, stats, color, emptyMsg }) => (
+          <div key={label} style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+            {/* Column header */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ width: 3, height: 14, borderRadius: 2, background: color, display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label} Installs</span>
+              {stats.lastTs > 0 && (
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ opacity: 0.5 }}>cập nhật</span>
+                  <span style={{ fontWeight: 600, color: color }}>
+                    {new Date(stats.lastTs).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </span>
+                </span>
+              )}
+            </div>
+
+            {/* Mini stat cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, borderBottom: '1px solid #f1f5f9' }}>
+              {[
+                { label: 'Tổng',       value: fmt(stats.total)                                },
+                { label: 'Đã sync',    value: `${stats.synced}/${stats.count}`                },
+                { label: 'Trung bình', value: stats.synced ? fmt(stats.avg) : '—'             },
+              ].map((c, ci) => (
+                <div key={c.label} style={{ padding: '10px 14px', borderRight: ci < 2 ? '1px solid #f1f5f9' : 'none' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>{c.label}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color, fontFamily: 'monospace' }}>{c.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Top 10 list */}
+            <PlatformTopList apps={stats.top} color={color} emptyMsg={emptyMsg} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Stats() {
   const { releases, apps, timelines, loading } = useReleasesStore()
   const location = useLocation()
@@ -961,11 +1147,22 @@ export default function Stats() {
   )
 
   return (
-    <div style={{ padding: '24px 24px', maxWidth: 1200 }}>
+    <div style={{ padding: '24px' }}>
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>Thống kê</h1>
         <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>{releases.length} releases · {apps.length} apps</p>
+      </div>
+
+      {/* Installs section */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 0 }}>
+          <span style={{ display: 'inline-block', width: 3, height: 16, borderRadius: 2, background: '#0d9488', flexShrink: 0 }} />
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>
+            App Installs
+          </p>
+        </div>
+        <InstallsOverview />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 20 }}>

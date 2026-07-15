@@ -67,13 +67,18 @@ const IconMonet = () => (
     <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
   </svg>
 )
-
+const IconInstalls = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2v13"/><path d="m7 12 5 5 5-5"/><rect x="2" y="19" width="20" height="3" rx="1"/>
+  </svg>
+)
 const BASE_NAV = [
   { to: '/dashboard', label: 'Dashboard',          Icon: IconDashboard,  group: 'main' },
   { to: '/apps',      label: 'Apps',               Icon: IconApps,       group: 'main', defaultStatus: 'RUNNING' },
   { to: '/history',   label: 'Lịch sử phát hành', Icon: IconHistory,    group: 'main', countKey: 'total' },
   { to: '/watchlist', label: 'Xem sau',            Icon: IconWatchlist,  group: 'main', countKey: 'watchlist' },
   { to: '/stats',     label: 'Thống kê',           Icon: IconStats,      group: 'analytics' },
+  { to: '/installs',  label: 'App Installs',        Icon: IconInstalls,   group: 'analytics' },
 ]
 
 export default function Layout({ children }) {
@@ -265,6 +270,7 @@ export default function Layout({ children }) {
               </React.Fragment>
             )
           })}
+
         </nav>
 
         {/* Bottom actions */}

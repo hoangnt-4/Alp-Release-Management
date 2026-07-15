@@ -11,6 +11,7 @@ import Apps from './pages/Apps'
 import Tutorial from './pages/Tutorial'
 import Login from './pages/Login'
 import Monet from './pages/Monet'
+import InstallsSync from './pages/InstallsSync'
 import { canAccessMonet } from './lib/monetAccess'
 
 function PrivateApp() {
@@ -38,6 +39,7 @@ function PrivateApp() {
           <Route path="/stats" element={<Stats />} />
           <Route path="/apps" element={<Apps />} />
           {hasMonet && <Route path="/monet" element={<Monet />} />}
+          <Route path="/installs" element={<InstallsSync />} />
           <Route path="/tutorial" element={<Tutorial />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

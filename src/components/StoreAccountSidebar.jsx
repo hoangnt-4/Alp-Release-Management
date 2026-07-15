@@ -1,5 +1,34 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import ReactDOM from 'react-dom'
+
+// Module-level cache — persists until page refresh, shared across all sidebar instances
+let _installsMap = null  // { [hnId_lower]: installs } | null = not yet loaded
+
+function fmtInstalls(n) {
+  if (n == null) return null
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(n >= 100_000 ? 0 : 1)}K`
+  return String(n)
+}
+
+function useInstallsMap() {
+  const [map, setMap] = useState(_installsMap)
+  useEffect(() => {
+    if (_installsMap !== null) return
+    fetch('/.netlify/functions/installs-list?platform=all')
+      .then(r => r.json())
+      .then(d => {
+        const m = {}
+        ;(d.apps || []).forEach(a => {
+          if (a.hnId && a.installs != null) m[a.hnId.toLowerCase()] = a.installs
+        })
+        _installsMap = m
+        setMap(m)
+      })
+      .catch(() => { _installsMap = {}; setMap({}) })
+  }, [])
+  return map
+}
 
 const STATUS_COLOR = { RUNNING: '#22c55e', PENDING: '#f59e0b', UNPUBLISHED: '#94a3b8', ABANDONED: '#f43f5e' }
 
@@ -22,15 +51,18 @@ function PlatformHeaderIcon({ byPlatform, size = 44 }) {
   return <span style={{ fontSize: 20 }}>🏢</span>
 }
 
-function SidebarContent({ account, apps, monet = {}, onClose, onSelectApp }) {
+function SidebarContent({ account, apps, appsOverride, monet = {}, onClose, onSelectApp }) {
+  const installsMap = useInstallsMap()
   const hasMonetData = (a) => {
     const m = monet[(a.alpId || '').toLowerCase()] || monet[(a.hnId || '').toLowerCase()]
     return m && Object.keys(m.months || {}).length > 0
   }
   const accountApps = useMemo(() =>
-    apps.filter(a => a.storeAccount && a.storeAccount === account)
-      .sort((a, b) => (a.alpId || '').localeCompare(b.alpId || ''))
-  , [apps, account])
+    appsOverride
+      ? [...appsOverride].sort((a, b) => (a.alpId || '').localeCompare(b.alpId || ''))
+      : apps.filter(a => a.storeAccount && a.storeAccount === account)
+          .sort((a, b) => (a.alpId || '').localeCompare(b.alpId || ''))
+  , [apps, appsOverride, account])
 
   const byPlatform = useMemo(() => {
     const m = {}
@@ -46,6 +78,14 @@ function SidebarContent({ account, apps, monet = {}, onClose, onSelectApp }) {
     accountApps.forEach(a => { const s = a.status || 'Unknown'; m[s] = (m[s] || 0) + 1 })
     return m
   }, [accountApps])
+
+  const totalInstalls = useMemo(() => {
+    if (!installsMap) return null
+    return accountApps.reduce((sum, a) => {
+      const v = installsMap[a.hnId?.toLowerCase()]
+      return sum + (v != null ? v : 0)
+    }, 0)
+  }, [accountApps, installsMap])
 
   return (
     <>
@@ -75,7 +115,18 @@ function SidebarContent({ account, apps, monet = {}, onClose, onSelectApp }) {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', margin: 0, lineHeight: 1.3 }}>{account}</p>
-            <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 0' }}>{accountApps.length} apps</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <p style={{ fontSize: 12, color: '#64748b', margin: 0 }}>{accountApps.length} apps</p>
+              {totalInstalls != null && totalInstalls > 0 && (
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#0d9488', fontFamily: 'monospace' }}>
+                  ↓ {totalInstalls >= 1_000_000
+                    ? `${(totalInstalls / 1_000_000).toFixed(1)}M`
+                    : totalInstalls >= 1_000
+                      ? `${(totalInstalls / 1_000).toFixed(1)}K`
+                      : totalInstalls.toLocaleString('en-US')}
+                </span>
+              )}
+            </div>
           </div>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: '50%', background: '#f1f5f9', border: 'none', cursor: 'pointer', fontSize: 16, color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, lineHeight: 1 }}>×</button>
         </div>
@@ -95,6 +146,8 @@ function SidebarContent({ account, apps, monet = {}, onClose, onSelectApp }) {
             const aIsA = ((typeof a.platform === 'object' ? a.platform?.text : a.platform) || '').toLowerCase().includes('android')
             const adc = aIsA ? '#34a853' : '#007aff'
             const sc = STATUS_COLOR[a.status] || '#94a3b8'
+            const installs = installsMap?.[a.hnId?.toLowerCase()]
+            const installsStr = fmtInstalls(installs)
             return (
               <div key={a.id}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', cursor: 'default', borderBottom: '1px solid #f1f5f9' }}
@@ -130,6 +183,12 @@ function SidebarContent({ account, apps, monet = {}, onClose, onSelectApp }) {
                         Store ↗
                       </a>
                     )}
+                    {/* Installs */}
+                    {installsStr && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: aIsA ? '#34a853' : '#0071e3', fontFamily: 'monospace', background: aIsA ? 'rgba(52,168,83,0.08)' : 'rgba(0,113,227,0.08)', padding: '1px 5px', borderRadius: 4 }}>
+                        ↓{installsStr}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -148,8 +207,5 @@ function SidebarContent({ account, apps, monet = {}, onClose, onSelectApp }) {
 
 // Render via portal so it always escapes any overflow/stacking context
 export default function StoreAccountSidebar(props) {
-  return ReactDOM.createPortal(
-    <SidebarContent {...props} />,
-    document.body
-  )
+  return ReactDOM.createPortal(<SidebarContent {...props} />, document.body)
 }
